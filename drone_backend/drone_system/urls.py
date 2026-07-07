@@ -16,10 +16,24 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path
-from app_core import views  # <-- ชี้มาที่แอปใหม่ของคุณ
+from app_core import views
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    
+    # DJI Handshake APIs
     path('dji/login/', views.dji_h5_login, name='dji_h5_login'),
     path('dji/api/v1/mqtt-config/', views.get_mqtt_config, name='get_mqtt_config'),
+    
+    # Web Dashboards
+    path('dashboard/mission/', views.mission_control, name='mission_control'),
+    path('dashboard/heatmap/', views.heatmap_view, name='heatmap_view'),
+    path('dashboard/logs/', views.detection_logs, name='detection_logs'),
+    
+    # Internal APIs for Frontend
+    path('api/drone-location/', views.api_latest_drone_location, name='api_latest_drone_location'),
+    path('api/heatmap-data/', views.api_heatmap_data, name='api_heatmap_data'),
+
+    # Background Services
+    path('api/start-service/', views.start_backend_service, name='start_backend_service'),
 ]

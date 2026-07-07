@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DJI Cloud API Handshake</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #121212;
+            color: #ffffff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            text-align: center;
+        }
+        .container {
+            background-color: #1e1e1e;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+            max-width: 400px;
+            width: 90%;
+            border: 1px solid #333;
+        }
+        h2 {
+            color: #deff9a;
+            margin-top: 0;
+            font-size: 24px;
+        }
+        p {
+            color: #aaaaaa;
+            font-size: 16px;
+            line-height: 1.5;
+        }
+        .btn {
+            background-color: #deff9a;
+            color: #121212;
+            border: none;
+            padding: 15px 32px;
+            font-size: 18px;
+            font-weight: bold;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background-color 0.3s, transform 0.1s;
+            margin-top: 20px;
+            width: 100%;
+        }
+        .btn:hover {
+            background-color: #c5e681;
+        }
+        .btn:active {
+            transform: scale(0.98);
+        }
+        .status {
+            margin-top: 25px;
+            font-size: 14px;
+            color: #888888;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>🛸 DJI Enterprise Connect</h2>
+        <p>ระบบเชื่อมต่อโดรน Matrice 4E อัตโนมัติเข้ากับ Ubuntu Server ของคุณ</p>
+        <button class="btn" onclick="startHandshake()">ยืนยันการเชื่อมต่อเซิร์ฟเวอร์</button>
+        <div id="statusMessage" class="status">สแตนด์บายรอการกดเชื่อมต่อ...</div>
+    </div>
+
+    <script>
+        function logStatus(msg) {
+            document.getElementById('statusMessage').innerText = msg;
+            console.log(msg);
+        }
+
+        function startHandshake() {
+            logStatus("กำลังตรวจสอบระบบ DJI Bridge...");
+            
+            // ตรวจสอบว่าเปิดบนรีโมต DJI จริงไหม (มีวัตถุ djiBridge โผล่มาในระบบ Webview ของรีโมต)
+            if (window.djiBridge) {
+                
+                // 1. ดึงค่าพารามิเตอร์ที่ Django ส่งมาให้จากไฟล์ .env ผ่าน Context เพื่อยืนยันสิทธิ์
+                let verifyData = {
+                    appId: "{{ app_id }}",
+                    appKey: "{{ app_key }}",
+                    license: "{{ app_license }}"
+                };
+
+                logStatus("กำลังส่ง License ให้รีโมตตรวจสอบสิทธิ์กับ DJI...");
+
+                window.djiBridge.platformVerifyLicense(JSON.stringify(verifyData), function(res) {
+                    let result = JSON.parse(res);
+                    
+                    if (result.code === 0) {
+                        logStatus("✅ ยืนยันสิทธิ์สำเร็จ! กำลังผูกขอบเขตพื้นที่ใช้งาน (Workspace)...");
+                        
+                        // 2. สั่งรีโมตเซ็ตค่าพื้นที่ใช้งาน (Workspace)
+                        // หลังจากบรรทัดนี้ รีโมตโดรนจะวิ่งไปเรียก Endpoint /dji/api/v1/mqtt-config/ หลังบ้านของเราอัตโนมัติ
+                        // เพื่อเอาค่า IP และพอร์ตไปล็อกอินเข้า MQTT Broker และเริ่มสตรีมภาพ/พิกัดครับ
+                        let workspaceData = { uuid: "prototype-workspace-id" };
+                        
+                        window.djiBridge.platformSetWorkspaceId(JSON.stringify(workspaceData), function(res2) {
+                            logStatus("🎉 เชื่อมต่อสมบูรณ์! โดรนเริ่มส่งพิกัดและวิดีโอแล้ว");
+                            alert("เชื่อมต่อสมบูรณ์! ระบบอัปโหลดข้อมูลเริ่มต้นทำงานแล้วครับ");
+                        });
+                    } else {
+                        logStatus("❌ ยืนยันสิทธิ์ล้มเหลว: " + result.message);
+                        alert("ยืนยันสิทธิ์ล้มเหลว ตรวจสอบ Key ในไฟล์ .env อีกครั้ง: " + result.message);
+                    }
+                });
+
+            } else {
+                logStatus("⚠️ ไม่พบ DJI Webview Interface");
+                alert("แจ้งเตือน: หน้านี้ออกแบบมาให้แสดงผลบนแอป DJI Pilot 2 บนรีโมตโดรนเท่านั้น หากเปิดบนคอมพิวเตอร์ทั่วไปจะไม่สามารถกดเชื่อมต่อได้ครับ");
+            }
+        }
+    </script>
+</body>
+</html>

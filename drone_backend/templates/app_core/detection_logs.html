@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <title>AI Detection History Logs</title>
+    <style>
+        body { font-family: sans-serif; background: #121212; color: white; padding: 30px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; background: #1e1e1e; }
+        th, td { padding: 12px; border: 1px solid #333; text-align: left; }
+        th { background: #deff9a; color: black; }
+        tr:nth-child(even) { background: #252525; }
+        .header { display: flex; justify-content: space-between; align-items: center; }
+        .nav-links a { color: #deff9a; text-decoration: none; font-weight: bold; margin-left: 15px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h2>📋 ตารางสรุปผลข้อมูลคอมพิวเตอร์วิทัศน์ย้อนหลัง</h2>
+        <div class="nav-links">
+            <a href="/dashboard/mission/">🗺️ สั่งการบิน</a>
+            <a href="/dashboard/heatmap/">🔥 แผนที่ความร้อน</a>
+            <a href="/dashboard/logs/">📋 ประวัติจัดเก็บ</a>
+        </div>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>เวลาที่บันทึกข้อมูล</th>
+                <th>ประเภทวัตถุที่ตรวจเจอ</th>
+                <th>ความมั่นใจของ AI (%)</th>
+                <th>พิกัดละติจูด (Lat)</th>
+                <th>พิกัดลองจิจูด (Lng)</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for log in logs %}
+            <tr>
+                <td>{{ log.timestamp|date:"Y-m-d H:i:s" }}</td>
+                <td>
+                    {% if log.object_type == 'person' %} 🚶 คน {% else %} 🚗 รถยนต์ {% endif %}
+                </td>
+                <td style="color: #deff9a; font-weight: bold;">{{ log.confidence }}%</td>
+                <td>{{ log.latitude }}</td>
+                <td>{{ log.longitude }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="5" style="text-align: center; color: #888;">ยังไม่มีข้อมูลประวัติในระบบ รอให้โดรนสตรีมภาพและรัน AI...</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</body>
+</html>

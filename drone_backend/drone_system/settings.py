@@ -37,7 +37,7 @@ DJI_APP_KEY = os.getenv('DJI_APP_KEY')
 DJI_APP_LICENSE = os.getenv('DJI_APP_LICENSE')
 SERVER_IP = os.getenv('SERVER_IP')
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['*']
 
 
 # Application definition
@@ -51,11 +51,12 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
 
     'app_core',
+    'corsheaders',
 ]
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
-    'app_core.middleware.RequestMiddleware',
+    #'app_core.middleware.RequestMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',

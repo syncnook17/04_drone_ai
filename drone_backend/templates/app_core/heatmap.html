@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <title>Live Heatmap Dashboard</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://leaflet.github.io/Leaflet.heat/dist/leaflet-heat.js"></script>
+    <style>
+        body { font-family: sans-serif; margin:0; background: #121212; color:white; }
+        #map { width: 100%; height: 90vh; }
+        .header { height: 10vh; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; }
+        .nav-links a { color: #deff9a; text-decoration: none; font-weight: bold; margin-left: 15px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h2>🔥 แผนที่ความหนาแน่นพื้นที่เสี่ยง (คน / รถยนต์)</h2>
+        <div class="nav-links">
+            <a href="/dashboard/mission/">🗺️ สั่งการบิน</a>
+            <a href="/dashboard/heatmap/">🔥 แผนที่ความร้อน</a>
+            <a href="/dashboard/logs/">📋 ประวัติจัดเก็บ</a>
+        </div>
+    </div>
+    <div id="map"></div>
+
+    <script>
+        var map = L.map('map').setView([13.7563, 100.5018], 15);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+        // ดึงพิกัดทั้งหมดจากฐานข้อมูลมาวาด Heatmap ทุกๆ 2 วินาที
+        function updateHeatmap() {
+            fetch('/api/heatmap-data/')
+                .then(res => res.json())
+                .then(data => {
+                    // เคลียร์ Layer เก่าออกก่อนวาดใหม่ เพื่ออัปเดตแบบสดๆ
+                    if (window.heatLayer) { map.removeLayer(window.heatLayer); }
+                    // วาดแถบความร้อนลงแผนที่ (กำหนดรัศมีวงความร้อนกระจายกว้าง 25 พิกเซล)
+                    window.heatLayer = L.heatLayer(data.points, {radius: 25, blur: 15, maxZoom: 17}).addTo(map);
+                });
+        }
+
+        updateHeatmap();
+        setInterval(updateHeatmap, 2000); // อัปเดตข้อมูลอัตโนมัติ
+    </script>
+</body>
+</html>
