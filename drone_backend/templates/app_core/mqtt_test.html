@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MQTT WebSocket Test</title>
+    <style>
+        body { font-family: sans-serif; background: #121212; color: #fff; padding: 24px; }
+        .box { background: #1e1e1e; padding: 20px; border-radius: 8px; max-width: 480px; margin: auto; }
+        button { background: #deff9a; color: #121212; border: none; padding: 12px 20px; font-weight: bold; border-radius: 6px; width: 100%; margin-top: 12px; }
+        pre { white-space: pre-wrap; font-size: 13px; color: #aaa; margin-top: 16px; }
+        code { color: #deff9a; }
+    </style>
+</head>
+<body>
+    <div class="box">
+        <h2>MQTT WebSocket Test</h2>
+        <p>เปิดหน้านี้ใน <strong>Browser บน RC</strong></p>
+        <p>Gateway: <code>{{ ws_url }}</code><br>User: <code>{{ mqtt_user|default:"(anonymous)" }}</code></p>
+        <button onclick="testMqtt('{{ ws_url|escapejs }}', 'Gateway 8007')">ทดสอบ ws://…:8007/mqtt</button>
+        <button onclick="testMqtt('ws://{{ server_ip }}:8083/mqtt', 'Direct 8083')">ทดสอบ ws://…:8083/mqtt</button>
+        <pre id="log">กดปุ่มเพื่อเริ่มทดสอบ...</pre>
+    </div>
+    <script src="https://unpkg.com/mqtt@5.3.5/dist/mqtt.min.js"></script>
+    <script>
+        const MQTT_USER = "{{ mqtt_user|escapejs }}";
+        const MQTT_PASS = "{{ mqtt_password|escapejs }}";
+        let timer = null;
+
+        function log(msg) {
+            document.getElementById('log').textContent += "\n" + msg;
+        }
+
+        function testMqtt(url, label) {
+            if (timer) clearTimeout(timer);
+            document.getElementById('log').textContent = "กำลังเชื่อม [" + label + "] " + url + "...";
+            const opts = { reconnectPeriod: 0, connectTimeout: 8000 };
+            if (MQTT_USER) {
+                opts.username = MQTT_USER;
+                opts.password = MQTT_PASS;
+            }
+            let done = false;
+            const client = mqtt.connect(url, opts);
+            client.on('connect', () => {
+                if (done) return;
+                done = true;
+                if (timer) clearTimeout(timer);
+                log("✅ [" + label + "] เชื่อมสำเร็จ!");
+                client.end();
+            });
+            client.on('error', (err) => log("❌ Error: " + err.message));
+            timer = setTimeout(() => {
+                if (done || client.connected) return;
+                done = true;
+                log("❌ [" + label + "] Timeout — RC ถึง " + url + " ไม่ได้");
+                client.end(true);
+            }, 10000);
+        }
+    </script>
+</body>
+</html>

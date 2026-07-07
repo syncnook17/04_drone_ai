@@ -4,12 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mission Control - DJI M4E Cockpit</title>
-    
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    
     <script src="https://cdn.jsdelivr.net/npm/flv.js@1.6.2/dist/flv.min.js"></script>
-    
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -20,191 +17,203 @@
             height: 100vh;
             overflow: hidden;
         }
-        #map {
-            width: 50%;
-            height: 100%;
-            border-right: 2px solid #222;
-        }
+        #map { width: 50%; height: 100%; border-right: 2px solid #222; }
         #video-panel {
             width: 50%;
             height: 100%;
-            padding: 25px;
+            padding: 20px;
             box-sizing: border-box;
             display: flex;
             flex-direction: column;
-            gap: 20px;
+            gap: 14px;
             overflow-y: auto;
         }
-        .nav-links {
-            display: flex;
-            gap: 15px;
-            margin-bottom: 5px;
-            border-bottom: 1px solid #333;
-            padding-bottom: 10px;
+        .nav-links { display: flex; gap: 15px; border-bottom: 1px solid #333; padding-bottom: 8px; }
+        .nav-links a { color: #deff9a; text-decoration: none; font-weight: bold; font-size: 14px; }
+        h2 { margin: 0; font-size: 20px; }
+        .status-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
         }
-        .nav-links a {
-            color: #deff9a;
-            text-decoration: none;
-            font-weight: bold;
-            font-size: 14px;
+        .status-item {
+            background: #1e1e1e;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 10px 12px;
+            font-size: 13px;
         }
-        .nav-links a:hover {
-            text-decoration: underline;
-        }
-        h2 {
-            margin: 0;
-            color: #f5f5f5;
-            font-size: 22px;
-        }
+        .status-item .label { color: #888; display: block; margin-bottom: 4px; }
+        .status-item .value.ok { color: #4ade80; }
+        .status-item .value.warn { color: #fbbf24; }
+        .status-item .value.bad { color: #f87171; }
         .backend-box {
             background: #1e1e1e;
-            padding: 15px;
+            padding: 14px;
             border-radius: 8px;
             border: 1px solid #333;
         }
-        .backend-box h4 {
-            margin-top: 0;
-            margin-bottom: 10px;
-            color: #aaaaaa;
-            font-size: 14px;
-            letter-spacing: 0.5px;
-        }
-        .btn-group {
-            display: flex;
-            gap: 10px;
-        }
+        .backend-box h4 { margin: 0 0 10px; color: #aaa; font-size: 13px; }
+        .btn-group { display: flex; gap: 8px; flex-wrap: wrap; }
         .btn-backend {
             background: #deff9a;
             color: #121212;
             border: none;
-            padding: 10px 15px;
+            padding: 10px 12px;
             font-weight: bold;
             border-radius: 6px;
             cursor: pointer;
             flex: 1;
-            transition: opacity 0.2s;
+            min-width: 140px;
         }
-        .btn-backend.ai {
-            background: #38bdf8;
-        }
-        .btn-backend:hover, .btn-track:hover {
-            opacity: 0.9;
-        }
+        .btn-backend.secondary { background: #444; color: #fff; }
+        .btn-backend.ai { background: #38bdf8; color: #121212; }
         video {
             width: 100%;
             aspect-ratio: 16/9;
-            background: black;
+            background: #000;
             border-radius: 8px;
             border: 1px solid #333;
         }
-        .btn-track {
-            background: #ff4a4a;
-            color: white;
-            border: none;
-            padding: 15px;
-            font-weight: bold;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 16px;
-            width: 100%;
-            box-shadow: 0 4px 10px rgba(255,74,74,0.2);
-        }
-        .hint {
-            color: #666;
-            font-size: 12px;
-            margin: 0;
-            font-style: italic;
-        }
+        .hint { color: #666; font-size: 12px; margin: 0; line-height: 1.5; }
+        code { color: #deff9a; font-size: 11px; word-break: break-all; }
     </style>
 </head>
 <body>
-
     <div id="map"></div>
-
     <div id="video-panel">
         <div class="nav-links">
-            <a href="/dashboard/mission/">🗺️ สั่งการบิน</a> | 
-            <a href="/dashboard/heatmap/">🔥 แผนที่ความร้อน</a> | 
-            <a href="/dashboard/logs/">📋 ประวัติจัดเก็บ</a>
+            <a href="/dashboard/mission/">🗺️ สั่งการบิน</a>
+            <a href="/dashboard/heatmap/">🔥 Heatmap</a>
+            <a href="/dashboard/logs/">📋 Logs</a>
         </div>
-        
-        <h2>🛸 ระบบควบคุมการบิน & ตรวจจับวัตถุ Real-time</h2>
+
+        <h2>🛸 Mission Control</h2>
+
+        <div class="status-grid">
+            <div class="status-item"><span class="label">Telemetry Listener</span><span id="st-telemetry" class="value warn">...</span></div>
+            <div class="status-item"><span class="label">พิกัดโดรน (MQTT)</span><span id="st-gps" class="value warn">...</span></div>
+            <div class="status-item"><span class="label">Video Stream (RTMP)</span><span id="st-video" class="value warn">...</span></div>
+            <div class="status-item"><span class="label">AI Processor</span><span id="st-ai" class="value warn">...</span></div>
+        </div>
 
         <div class="backend-box">
-            <h4>⚙️ ระบบจัดการเซิร์ฟเวอร์หลังบ้าน (Background Tasks)</h4>
+            <h4>⚙️ Background Services</h4>
             <div class="btn-group">
-                <button class="btn-backend" onclick="launchService('telemetry')">📡 เปิดระบบรับพิกัด (Telemetry)</button>
-                <button class="btn-backend ai" onclick="launchService('ai')">🧠 เปิดระบบ AI (YOLOv8)</button>
+                <button class="btn-backend" onclick="launchService('telemetry')">📡 เปิด Telemetry</button>
+                <button class="btn-backend secondary" onclick="stopService('telemetry')">หยุด Telemetry</button>
+                <button class="btn-backend ai" onclick="launchService('ai')">🧠 เปิด AI</button>
+                <button class="btn-backend secondary" onclick="stopService('ai')">หยุด AI</button>
             </div>
         </div>
-        
+
         <video id="videoElement" controls autoplay muted></video>
-        
-        <button class="btn-track" onclick="triggerSmartTrack()">🎯 สั่งล็อกและบินติดตามเป้าหมาย (Smart Track)</button>
-        <p class="hint">*เมื่อคลิกปุ่ม ระบบจะส่งพิกัดกล่องเป้าหมายไปยังตัวโดรน Matrice 4E ผ่าน DJI Cloud API เพื่อล็อกกิมบอลและบินตามโดยอัตโนมัติ</p>
+        <p class="hint">
+            RTMP (Pilot 2): <code>{{ rtmp_url }}</code><br>
+            FLV (Web): <code>{{ flv_url }}</code><br>
+            Pilot H5: <code>http://{{ server_ip }}:{{ django_port }}/dji/login/</code>
+        </p>
     </div>
 
     <script>
-        // ==========================================
-        // 1. ตั้งค่าและเริ่มต้นระบบแผนที่ (Leaflet Map)
-        // ==========================================
-        // ตั้งพิกัดเริ่มต้นเป็นกรุงเทพฯ (Lat, Lng) ซูมระดับ 15
-        var map = L.map('map').setView([13.7563, 100.5018], 15);
+        const DEFAULT_CENTER = [13.7563, 100.5018];
+        const FLV_URL = "{{ flv_url }}";
+
+        const map = L.map('map').setView(DEFAULT_CENTER, 15);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 19,
-            attribution: '© OpenStreetMap contributors'
+            attribution: '© OpenStreetMap'
         }).addTo(map);
-        
-        // สร้างหมุดสัญลักษณ์ตัวโดรน
-        var droneMarker = L.marker([13.7563, 100.5018]).addTo(map).bindPopup("ตำแหน่งโดรน Matrice 4E");
 
-        // ฟังก์ชันดักดึงพิกัดล่าสุดของโดรนจาก Django API ทุกๆ 1 วินาที (Polling)
-        setInterval(function() {
-            fetch('/api/drone-location/')
-                .then(response => response.json())
+        const droneMarker = L.marker(DEFAULT_CENTER).addTo(map)
+            .bindPopup("รอพิกัดจากโดรน...");
+
+        let flvPlayer = null;
+
+        function setStatus(id, text, level) {
+            const el = document.getElementById(id);
+            el.textContent = text;
+            el.className = 'value ' + level;
+        }
+
+        function refreshSystemStatus() {
+            fetch('/api/system-status/')
+                .then(r => r.json())
                 .then(data => {
-                    var newPos = [data.lat, data.lng];
-                    droneMarker.setLatLng(newPos);
-                    map.panTo(newPos); // เลื่อนแผนที่ตามตำแหน่งโดรน
-                    droneMarker.getPopup().setContent(`<b>โดรน Matrice 4E</b><br>ความสูง: ${data.alt.toFixed(1)} เมตร`);
+                    setStatus('st-telemetry',
+                        data.telemetry_listener_running ? 'ทำงาน' : 'หยุด',
+                        data.telemetry_listener_running ? 'ok' : 'bad');
+                    setStatus('st-gps',
+                        data.telemetry_connected ? 'เชื่อมต่อ' : 'ไม่มีสัญญาณ',
+                        data.telemetry_connected ? 'ok' : 'warn');
+                    setStatus('st-video',
+                        data.video_stream_active ? 'Live' : 'ไม่มี stream',
+                        data.video_stream_active ? 'ok' : 'warn');
+                    setStatus('st-ai',
+                        data.video_processor_running ? 'ทำงาน' : 'หยุด',
+                        data.video_processor_running ? 'ok' : 'bad');
                 })
-                .catch(err => console.log("ยังไม่มีข้อมูลพิกัดส่งเข้ามา..."));
-        }, 1000);
+                .catch(() => {});
+        }
 
-        // ==========================================
-        // 2. ระบบเชื่อมต่อวิดีโอสด (SRS Media Server)
-        // ==========================================
-        if (flvjs.isSupported()) {
-            var videoElement = document.getElementById('videoElement');
-            var flvPlayer = flvjs.createPlayer({
-                type: 'flv',
-                // ดึงภาพสตรีมผ่าน HTTP-FLV พอร์ต 8085 ที่เราตั้งหลบพอร์ตชนไว้ใน Docker
-                url: 'http://{{ server_ip }}:8085/live/drone.flv'
-            });
+        function refreshLocation() {
+            fetch('/api/drone-location/')
+                .then(r => r.json())
+                .then(data => {
+                    if (!data.connected || data.lat == null) {
+                        droneMarker.setPopupContent("⏳ " + (data.message || "รอพิกัดจากโดรน"));
+                        return;
+                    }
+                    const pos = [data.lat, data.lng];
+                    droneMarker.setLatLng(pos);
+                    map.panTo(pos);
+                    droneMarker.setPopupContent(
+                        `<b>${data.drone_sn || 'Drone'}</b><br>สูง: ${Number(data.alt).toFixed(1)} m`
+                    );
+                })
+                .catch(() => {});
+        }
+
+        function startFlvPlayer() {
+            if (!flvjs.isSupported()) return;
+            if (flvPlayer) {
+                flvPlayer.destroy();
+                flvPlayer = null;
+            }
+            const videoElement = document.getElementById('videoElement');
+            flvPlayer = flvjs.createPlayer({ type: 'flv', url: FLV_URL, isLive: true });
             flvPlayer.attachMediaElement(videoElement);
             flvPlayer.load();
-            flvPlayer.play();
+            flvPlayer.play().catch(() => {});
+            flvPlayer.on(flvjs.Events.ERROR, () => {
+                setTimeout(startFlvPlayer, 5000);
+            });
         }
 
-        // ==========================================
-        // 3. ฟังก์ชันปุ่มกดเรียกใช้ Background API
-        // ==========================================
         function launchService(type) {
             fetch(`/api/start-service/?service=${type}`)
-                .then(res => res.json())
+                .then(r => r.json())
                 .then(data => {
-                    if (data.status === 'success') {
-                        alert("🚀 " + data.message);
-                    } else {
-                        alert("❌ เกิดข้อผิดพลาด: " + data.message);
-                    }
-                })
-                .catch(err => alert("❌ ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้"));
+                    alert(data.message);
+                    refreshSystemStatus();
+                });
         }
 
-        function triggerSmartTrack() {
-            alert("ส่งสัญญาณคำสั่ง 'Follow by Box Selection' ไปยัง DJI Cloud API เรียบร้อย ตัวโดรนจะเริ่มทำงานล็อกเป้าหมายโดยอัตโนมัติ");
+        function stopService(type) {
+            fetch(`/api/start-service/?service=${type}&action=stop`)
+                .then(r => r.json())
+                .then(data => {
+                    alert(data.message);
+                    refreshSystemStatus();
+                });
         }
+
+        startFlvPlayer();
+        refreshSystemStatus();
+        refreshLocation();
+        setInterval(refreshLocation, 1000);
+        setInterval(refreshSystemStatus, 3000);
+        setInterval(startFlvPlayer, 15000);
     </script>
 </body>
 </html>

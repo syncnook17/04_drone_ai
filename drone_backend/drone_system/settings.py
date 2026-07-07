@@ -35,7 +35,33 @@ DEBUG = True
 DJI_APP_ID = os.getenv('DJI_APP_ID')
 DJI_APP_KEY = os.getenv('DJI_APP_KEY')
 DJI_APP_LICENSE = os.getenv('DJI_APP_LICENSE')
-SERVER_IP = os.getenv('SERVER_IP')
+SERVER_IP = os.getenv('SERVER_IP', '127.0.0.1')
+DJANGO_PORT = int(os.getenv('DJANGO_PORT', '8006'))
+
+DJI_WORKSPACE_ID = os.getenv('DJI_WORKSPACE_ID', '')
+DJI_PLATFORM_NAME = os.getenv('DJI_PLATFORM_NAME', 'Drone AI Platform')
+DJI_WORKSPACE_NAME = os.getenv('DJI_WORKSPACE_NAME', 'Default Workspace')
+DJI_WORKSPACE_DESC = os.getenv('DJI_WORKSPACE_DESC', '')
+
+MQTT_PORT = int(os.getenv('MQTT_PORT', '1883'))
+MQTT_PUBLIC_PORT = int(os.getenv('MQTT_PUBLIC_PORT', os.getenv('MQTT_PORT', '1883')))
+MQTT_USER = os.getenv('MQTT_USER', 'admin')
+MQTT_PASSWORD = os.getenv('MQTT_PASSWORD', 'admin1234')
+MQTT_USE_ANONYMOUS = os.getenv('MQTT_USE_ANONYMOUS', 'true').lower() == 'true'
+PILOT_USERNAME = os.getenv('PILOT_USERNAME', 'pilot')
+PILOT_PASSWORD = os.getenv('PILOT_PASSWORD', 'pilot123')
+MQTT_WS_PORT = int(os.getenv('MQTT_WS_PORT', '8083'))
+MQTT_WS_USE_GATEWAY = os.getenv('MQTT_WS_USE_GATEWAY', 'true').lower() == 'true'
+MQTT_WS_GATEWAY_PATH = os.getenv('MQTT_WS_GATEWAY_PATH', '/mqtt')
+DJANGO_INTERNAL_PORT = int(os.getenv('DJANGO_INTERNAL_PORT', os.getenv('DJANGO_PORT', '8007')))
+
+RTMP_PORT = int(os.getenv('RTMP_PORT', '1935'))
+SRS_HTTP_PORT = int(os.getenv('SRS_HTTP_PORT', '8085'))
+SRS_API_PORT = int(os.getenv('SRS_API_PORT', '1985'))
+RTMP_APP = os.getenv('RTMP_APP', 'live')
+RTMP_STREAM_KEY = os.getenv('RTMP_STREAM_KEY', 'drone')
+
+TELEMETRY_STALE_SECONDS = int(os.getenv('TELEMETRY_STALE_SECONDS', '30'))
 
 ALLOWED_HOSTS = ['*']
 
