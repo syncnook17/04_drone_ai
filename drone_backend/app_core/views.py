@@ -290,8 +290,19 @@ def heatmap_view(request):
 
 
 def detection_logs(request):
-    logs = DetectionLog.objects.all()[:100]
-    return render(request, "app_core/detection_logs.html", {"logs": logs})
+    logs = DetectionLog.objects.all().order_by("-timestamp")[:100]
+    return render(
+        request,
+        "app_core/detection_logs.html",
+        {"logs": logs, "total_count": DetectionLog.objects.count()},
+    )
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def delete_all_detection_logs(request):
+    deleted, _ = DetectionLog.objects.all().delete()
+    return JsonResponse({"ok": True, "deleted": deleted})
 
 
 def api_latest_drone_location(request):

@@ -12,3 +12,700 @@
   client = mqtt.Client()
 /home/ddm/02_drone_ai/ai_pipeline/telemetry_listener.py:77: DeprecationWarning: Callback API version 1 is deprecated, update to latest version
   client = mqtt.Client()
+🔌 MQTT localhost:1883 user=admin
+ℹ️  รอ update_topo จาก RC → ตอบ status_reply → รับ OSD พิกัด
+✅ เชื่อมต่อ MQTT Broker (EMQX) สำเร็จ!
+📡 Subscribe: thing/product/+/osd
+📡 Subscribe: thing/product/+/state
+📡 Subscribe: sys/product/+/status
+✅ Subscribe OK (mid=1)
+✅ Subscribe OK (mid=2)
+✅ Subscribe OK (mid=3)
+📩 thing/product/9N9CMC70010SEG/state (579 bytes)
+   ↳ ไม่มี lat/lng (keys: ['live_capacity'])
+📩 sys/product/9N9CMC70010SEG/status method=update_topo
+📤 ตอบ status_reply → sys/product/9N9CMC70010SEG/status_reply
+🔗 Topology: RC=9N9CMC70010SEG → โดรน=1581F7FVC252A00CYP9D
+📩 thing/product/1581F7FVC252A00CYP9D/osd (125 bytes)
+📥 [osd] SN=1581F7FVC252A00CYP9D lat=13.75 lng=100.5 alt=30
+📩 sys/product/9N9CMC70010SEG/status method=update_topo
+📤 ตอบ status_reply → sys/product/9N9CMC70010SEG/status_reply
+🔗 Topology: RC=9N9CMC70010SEG → โดรน=1581F7FVC252A00CYP9D
+📩 thing/product/1581F7FVC252A00CYP9D/state (196 bytes)
+   ↳ ไม่มี lat/lng (keys: ['H20-0'])
+📩 thing/product/9N9CMC70010SEG/state (185 bytes)
+   ↳ ไม่มี lat/lng (keys: ['firmware_version'])
+📩 thing/product/1581F7FVC252A00CYP9D/state (505 bytes)
+   ↳ ไม่มี lat/lng (keys: ['control_source', 'home_latitude', 'home_longitude', 'locked', 'low_battery_warning_threshold', 'mode_code_reason', 'offline_map_enable', 'payloads', 'serious_low_battery_warning_threshold'])
+📩 thing/product/1581F7FVC252A00CYP9D/state (192 bytes)
+   ↳ ไม่มี lat/lng (keys: ['psdk_widget_values'])
+📩 thing/product/1581F7FVC252A00CYP9D/state (182 bytes)
+   ↳ ไม่มี lat/lng (keys: ['ai_boxes'])
+📩 thing/product/1581F7FVC252A00CYP9D/state (199 bytes)
+   ↳ ไม่มี lat/lng (keys: ['commander_mode_lost_action'])
+📩 thing/product/1581F7FVC252A00CYP9D/state (506 bytes)
+   ↳ ไม่มี lat/lng (keys: ['control_source', 'home_latitude', 'home_longitude', 'locked', 'low_battery_warning_threshold', 'mode_code_reason', 'offline_map_enable', 'payloads', 'serious_low_battery_warning_threshold'])
+📩 thing/product/1581F7FVC252A00CYP9D/state (194 bytes)
+   ↳ ไม่มี lat/lng (keys: ['commander_flight_mode'])
+📩 thing/product/1581F7FVC252A00CYP9D/state (176 bytes)
+   ↳ ไม่มี lat/lng (keys: ['wpmz_version'])
+📩 thing/product/1581F7FVC252A00CYP9D/state (197 bytes)
+   ↳ ไม่มี lat/lng (keys: ['commander_flight_height'])
+📩 thing/product/1581F7FVC252A00CYP9D/state (181 bytes)
+   ↳ ไม่มี lat/lng (keys: ['rth_mode'])
+📩 thing/product/1581F7FVC252A00CYP9D/state (194 bytes)
+   ↳ ไม่มี lat/lng (keys: ['is_beidou_version'])
+📩 thing/product/9N9CMC70010SEG/state (171 bytes)
+   ↳ ไม่มี lat/lng (keys: ['dongle_infos'])
+📩 thing/product/1581F7FVC252A00CYP9D/state (347 bytes)
+   ↳ ไม่มี lat/lng (keys: ['camera_watermark_settings'])
+📩 thing/product/9N9CMC70010SEG/state (225 bytes)
+   ↳ ไม่มี lat/lng (keys: ['capability_set'])
+📩 thing/product/9N9CMC70010SEG/state (171 bytes)
+   ↳ ไม่มี lat/lng (keys: ['dongle_infos'])
+📩 thing/product/9N9CMC70010SEG/state (177 bytes)
+   ↳ ไม่มี lat/lng (keys: ['cloud_control_auth'])
+📩 thing/product/1581F7FVC252A00CYP9D/state (506 bytes)
+   ↳ ไม่มี lat/lng (keys: ['control_source', 'home_latitude', 'home_longitude', 'locked', 'low_battery_warning_threshold', 'mode_code_reason', 'offline_map_enable', 'payloads', 'serious_low_battery_warning_threshold'])
+📩 thing/product/1581F7FVC252A00CYP9D/state (176 bytes)
+   ↳ ไม่มี lat/lng (keys: ['wpmz_version'])
+📩 thing/product/1581F7FVC252A00CYP9D/state (185 bytes)
+   ↳ ไม่มี lat/lng (keys: ['firmware_version'])
+📩 thing/product/1581F7FVC252A00CYP9D/state (506 bytes)
+   ↳ ไม่มี lat/lng (keys: ['control_source', 'home_latitude', 'home_longitude', 'locked', 'low_battery_warning_threshold', 'mode_code_reason', 'offline_map_enable', 'payloads', 'serious_low_battery_warning_threshold'])
+📩 thing/product/1581F7FVC252A00CYP9D/state (176 bytes)
+   ↳ ไม่มี lat/lng (keys: ['wpmz_version'])
+📩 thing/product/9N9CMC70010SEG/state (579 bytes)
+   ↳ ไม่มี lat/lng (keys: ['live_capacity'])
+📩 thing/product/1581F7FVC252A00CYP9D/state (171 bytes)
+   ↳ ไม่มี lat/lng (keys: ['dongle_infos'])
+📩 thing/product/1581F7FVC252A00CYP9D/state (171 bytes)
+   ↳ ไม่มี lat/lng (keys: ['dongle_infos'])
+📩 thing/product/9N9CMC70010SEG/state (171 bytes)
+   ↳ ไม่มี lat/lng (keys: ['dongle_infos'])
+📩 thing/product/1581F7FVC252A00CYP9D/state (343 bytes)
+   ↳ ไม่มี lat/lng (keys: ['camera_watermark_settings'])
+📩 thing/product/1581F7FVC252A00CYP9D/state (171 bytes)
+   ↳ ไม่มี lat/lng (keys: ['dongle_infos'])
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2807 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.650211334228516
+📩 thing/product/1581F7FVC252A00CYP9D/state (192 bytes)
+   ↳ ไม่มี lat/lng (keys: ['psdk_widget_values'])
+📩 thing/product/1581F7FVC252A00CYP9D/state (182 bytes)
+   ↳ ไม่มี lat/lng (keys: ['ai_boxes'])
+📩 thing/product/1581F7FVC252A00CYP9D/state (199 bytes)
+   ↳ ไม่มี lat/lng (keys: ['commander_mode_lost_action'])
+📩 thing/product/1581F7FVC252A00CYP9D/state (194 bytes)
+   ↳ ไม่มี lat/lng (keys: ['commander_flight_mode'])
+📩 thing/product/1581F7FVC252A00CYP9D/state (197 bytes)
+   ↳ ไม่มี lat/lng (keys: ['commander_flight_height'])
+📩 thing/product/1581F7FVC252A00CYP9D/state (181 bytes)
+   ↳ ไม่มี lat/lng (keys: ['rth_mode'])
+📩 thing/product/1581F7FVC252A00CYP9D/state (194 bytes)
+   ↳ ไม่มี lat/lng (keys: ['is_beidou_version'])
+📩 thing/product/9N9CMC70010SEG/state (225 bytes)
+   ↳ ไม่มี lat/lng (keys: ['capability_set'])
+📩 thing/product/9N9CMC70010SEG/state (177 bytes)
+   ↳ ไม่มี lat/lng (keys: ['cloud_control_auth'])
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2807 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.670127868652344
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2790 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.67030334472656
+📩 thing/product/1581F7FVC252A00CYP9D/state (192 bytes)
+   ↳ ไม่มี lat/lng (keys: ['psdk_widget_values'])
+📩 thing/product/1581F7FVC252A00CYP9D/state (182 bytes)
+   ↳ ไม่มี lat/lng (keys: ['ai_boxes'])
+📩 thing/product/1581F7FVC252A00CYP9D/state (199 bytes)
+   ↳ ไม่มี lat/lng (keys: ['commander_mode_lost_action'])
+📩 thing/product/1581F7FVC252A00CYP9D/state (194 bytes)
+   ↳ ไม่มี lat/lng (keys: ['commander_flight_mode'])
+📩 thing/product/1581F7FVC252A00CYP9D/state (197 bytes)
+   ↳ ไม่มี lat/lng (keys: ['commander_flight_height'])
+📩 thing/product/1581F7FVC252A00CYP9D/state (181 bytes)
+   ↳ ไม่มี lat/lng (keys: ['rth_mode'])
+📩 thing/product/1581F7FVC252A00CYP9D/state (194 bytes)
+   ↳ ไม่มี lat/lng (keys: ['is_beidou_version'])
+📩 thing/product/9N9CMC70010SEG/state (225 bytes)
+   ↳ ไม่มี lat/lng (keys: ['capability_set'])
+📩 thing/product/9N9CMC70010SEG/state (177 bytes)
+   ↳ ไม่มี lat/lng (keys: ['cloud_control_auth'])
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2806 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.66302490234375
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2807 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.65764617919922
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2807 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.65828323364258
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2807 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.66278839111328
+📩 thing/product/1581F7FVC252A00CYP9D/state (192 bytes)
+   ↳ ไม่มี lat/lng (keys: ['psdk_widget_values'])
+📩 thing/product/1581F7FVC252A00CYP9D/state (182 bytes)
+   ↳ ไม่มี lat/lng (keys: ['ai_boxes'])
+📩 thing/product/1581F7FVC252A00CYP9D/state (199 bytes)
+   ↳ ไม่มี lat/lng (keys: ['commander_mode_lost_action'])
+📩 thing/product/1581F7FVC252A00CYP9D/state (194 bytes)
+   ↳ ไม่มี lat/lng (keys: ['commander_flight_mode'])
+📩 thing/product/1581F7FVC252A00CYP9D/state (197 bytes)
+   ↳ ไม่มี lat/lng (keys: ['commander_flight_height'])
+📩 thing/product/1581F7FVC252A00CYP9D/state (181 bytes)
+   ↳ ไม่มี lat/lng (keys: ['rth_mode'])
+📩 thing/product/1581F7FVC252A00CYP9D/state (194 bytes)
+   ↳ ไม่มี lat/lng (keys: ['is_beidou_version'])
+📩 thing/product/9N9CMC70010SEG/state (225 bytes)
+   ↳ ไม่มี lat/lng (keys: ['capability_set'])
+📩 thing/product/9N9CMC70010SEG/state (177 bytes)
+   ↳ ไม่มี lat/lng (keys: ['cloud_control_auth'])
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2807 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.65364074707031
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2807 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.61640167236328
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2807 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.587398529052734
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2816 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.59428024291992
+📩 thing/product/1581F7FVC252A00CYP9D/state (192 bytes)
+   ↳ ไม่มี lat/lng (keys: ['psdk_widget_values'])
+📩 thing/product/1581F7FVC252A00CYP9D/state (182 bytes)
+   ↳ ไม่มี lat/lng (keys: ['ai_boxes'])
+📩 thing/product/1581F7FVC252A00CYP9D/state (199 bytes)
+   ↳ ไม่มี lat/lng (keys: ['commander_mode_lost_action'])
+📩 thing/product/9N9CMC70010SEG/state (579 bytes)
+   ↳ ไม่มี lat/lng (keys: ['live_capacity'])
+📩 thing/product/1581F7FVC252A00CYP9D/state (194 bytes)
+   ↳ ไม่มี lat/lng (keys: ['commander_flight_mode'])
+📩 thing/product/9N9CMC70010SEG/state (579 bytes)
+   ↳ ไม่มี lat/lng (keys: ['live_capacity'])
+📩 thing/product/9N9CMC70010SEG/state (579 bytes)
+   ↳ ไม่มี lat/lng (keys: ['live_capacity'])
+📩 thing/product/1581F7FVC252A00CYP9D/state (197 bytes)
+   ↳ ไม่มี lat/lng (keys: ['commander_flight_height'])
+📩 thing/product/1581F7FVC252A00CYP9D/state (181 bytes)
+   ↳ ไม่มี lat/lng (keys: ['rth_mode'])
+📩 thing/product/1581F7FVC252A00CYP9D/state (194 bytes)
+   ↳ ไม่มี lat/lng (keys: ['is_beidou_version'])
+📩 thing/product/9N9CMC70010SEG/state (225 bytes)
+   ↳ ไม่มี lat/lng (keys: ['capability_set'])
+📩 thing/product/9N9CMC70010SEG/state (177 bytes)
+   ↳ ไม่มี lat/lng (keys: ['cloud_control_auth'])
+📩 thing/product/9N9CMC70010SEG/state (579 bytes)
+   ↳ ไม่มี lat/lng (keys: ['live_capacity'])
+📩 thing/product/9N9CMC70010SEG/state (579 bytes)
+   ↳ ไม่มี lat/lng (keys: ['live_capacity'])
+📩 thing/product/9N9CMC70010SEG/state (579 bytes)
+   ↳ ไม่มี lat/lng (keys: ['live_capacity'])
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2816 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.59465026855469
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2816 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.602447509765625
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2816 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.60877990722656
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2816 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.629337310791016
+📩 thing/product/1581F7FVC252A00CYP9D/state (192 bytes)
+   ↳ ไม่มี lat/lng (keys: ['psdk_widget_values'])
+📩 thing/product/1581F7FVC252A00CYP9D/state (182 bytes)
+   ↳ ไม่มี lat/lng (keys: ['ai_boxes'])
+📩 thing/product/1581F7FVC252A00CYP9D/state (199 bytes)
+   ↳ ไม่มี lat/lng (keys: ['commander_mode_lost_action'])
+📩 thing/product/1581F7FVC252A00CYP9D/state (194 bytes)
+   ↳ ไม่มี lat/lng (keys: ['commander_flight_mode'])
+📩 thing/product/1581F7FVC252A00CYP9D/state (197 bytes)
+   ↳ ไม่มี lat/lng (keys: ['commander_flight_height'])
+📩 thing/product/1581F7FVC252A00CYP9D/state (181 bytes)
+   ↳ ไม่มี lat/lng (keys: ['rth_mode'])
+📩 thing/product/1581F7FVC252A00CYP9D/state (194 bytes)
+   ↳ ไม่มี lat/lng (keys: ['is_beidou_version'])
+📩 thing/product/9N9CMC70010SEG/state (225 bytes)
+   ↳ ไม่มี lat/lng (keys: ['capability_set'])
+📩 thing/product/9N9CMC70010SEG/state (177 bytes)
+   ↳ ไม่มี lat/lng (keys: ['cloud_control_auth'])
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2816 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.65138626098633
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2815 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.6658706665039
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2816 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.67542266845703
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2816 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.68373489379883
+📩 thing/product/1581F7FVC252A00CYP9D/state (192 bytes)
+   ↳ ไม่มี lat/lng (keys: ['psdk_widget_values'])
+📩 thing/product/1581F7FVC252A00CYP9D/state (182 bytes)
+   ↳ ไม่มี lat/lng (keys: ['ai_boxes'])
+📩 thing/product/1581F7FVC252A00CYP9D/state (199 bytes)
+   ↳ ไม่มี lat/lng (keys: ['commander_mode_lost_action'])
+📩 thing/product/1581F7FVC252A00CYP9D/state (194 bytes)
+   ↳ ไม่มี lat/lng (keys: ['commander_flight_mode'])
+📩 thing/product/1581F7FVC252A00CYP9D/state (197 bytes)
+   ↳ ไม่มี lat/lng (keys: ['commander_flight_height'])
+📩 thing/product/1581F7FVC252A00CYP9D/state (181 bytes)
+   ↳ ไม่มี lat/lng (keys: ['rth_mode'])
+📩 thing/product/1581F7FVC252A00CYP9D/state (194 bytes)
+   ↳ ไม่มี lat/lng (keys: ['is_beidou_version'])
+📩 thing/product/9N9CMC70010SEG/state (225 bytes)
+   ↳ ไม่มี lat/lng (keys: ['capability_set'])
+📩 thing/product/9N9CMC70010SEG/state (177 bytes)
+   ↳ ไม่มี lat/lng (keys: ['cloud_control_auth'])
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2816 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.69700241088867
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2815 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.70037841796875
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2814 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.6868553161621
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2814 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.6727409362793
+📩 thing/product/1581F7FVC252A00CYP9D/state (192 bytes)
+   ↳ ไม่มี lat/lng (keys: ['psdk_widget_values'])
+📩 thing/product/1581F7FVC252A00CYP9D/state (182 bytes)
+   ↳ ไม่มี lat/lng (keys: ['ai_boxes'])
+📩 thing/product/1581F7FVC252A00CYP9D/state (199 bytes)
+   ↳ ไม่มี lat/lng (keys: ['commander_mode_lost_action'])
+📩 thing/product/1581F7FVC252A00CYP9D/state (194 bytes)
+   ↳ ไม่มี lat/lng (keys: ['commander_flight_mode'])
+📩 thing/product/1581F7FVC252A00CYP9D/state (197 bytes)
+   ↳ ไม่มี lat/lng (keys: ['commander_flight_height'])
+📩 thing/product/1581F7FVC252A00CYP9D/state (181 bytes)
+   ↳ ไม่มี lat/lng (keys: ['rth_mode'])
+📩 thing/product/1581F7FVC252A00CYP9D/state (194 bytes)
+   ↳ ไม่มี lat/lng (keys: ['is_beidou_version'])
+📩 thing/product/9N9CMC70010SEG/state (225 bytes)
+   ↳ ไม่มี lat/lng (keys: ['capability_set'])
+📩 thing/product/9N9CMC70010SEG/state (177 bytes)
+   ↳ ไม่มี lat/lng (keys: ['cloud_control_auth'])
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2814 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.6697006225586
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2816 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.67892837524414
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2816 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.68549728393555
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2816 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.65946960449219
+📩 thing/product/1581F7FVC252A00CYP9D/state (192 bytes)
+   ↳ ไม่มี lat/lng (keys: ['psdk_widget_values'])
+📩 thing/product/1581F7FVC252A00CYP9D/state (182 bytes)
+   ↳ ไม่มี lat/lng (keys: ['ai_boxes'])
+📩 thing/product/1581F7FVC252A00CYP9D/state (199 bytes)
+   ↳ ไม่มี lat/lng (keys: ['commander_mode_lost_action'])
+📩 thing/product/1581F7FVC252A00CYP9D/state (194 bytes)
+   ↳ ไม่มี lat/lng (keys: ['commander_flight_mode'])
+📩 thing/product/1581F7FVC252A00CYP9D/state (197 bytes)
+   ↳ ไม่มี lat/lng (keys: ['commander_flight_height'])
+📩 thing/product/1581F7FVC252A00CYP9D/state (181 bytes)
+   ↳ ไม่มี lat/lng (keys: ['rth_mode'])
+📩 thing/product/1581F7FVC252A00CYP9D/state (194 bytes)
+   ↳ ไม่มี lat/lng (keys: ['is_beidou_version'])
+📩 thing/product/9N9CMC70010SEG/state (225 bytes)
+   ↳ ไม่มี lat/lng (keys: ['capability_set'])
+📩 thing/product/9N9CMC70010SEG/state (177 bytes)
+   ↳ ไม่มี lat/lng (keys: ['cloud_control_auth'])
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2816 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.61044692993164
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2816 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.58273696899414
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2814 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.5677833557129
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2814 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.5490837097168
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2816 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.51729202270508
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2814 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.5196533203125
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2816 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.53691864013672
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2816 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.556575775146484
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2814 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.5592155456543
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2814 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.5574607849121
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2816 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.552249908447266
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2816 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.534183502197266
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2816 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.469329833984375
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2812 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.40260314941406
+📩 thing/product/1581F7FVC252A00CYP9D/state (1024 bytes)
+   ↳ ไม่มี lat/lng (keys: ['cameras'])
+📩 thing/product/1581F7FVC252A00CYP9D/state (1024 bytes)
+   ↳ ไม่มี lat/lng (keys: ['cameras'])
+📩 thing/product/1581F7FVC252A00CYP9D/state (1024 bytes)
+   ↳ ไม่มี lat/lng (keys: ['cameras'])
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2794 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.36051559448242
+📩 thing/product/1581F7FVC252A00CYP9D/state (1024 bytes)
+   ↳ ไม่มี lat/lng (keys: ['cameras'])
+📩 thing/product/1581F7FVC252A00CYP9D/state (1024 bytes)
+   ↳ ไม่มี lat/lng (keys: ['cameras'])
+📩 thing/product/1581F7FVC252A00CYP9D/state (1024 bytes)
+   ↳ ไม่มี lat/lng (keys: ['cameras'])
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2794 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.343624114990234
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2796 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.351200103759766
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2796 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.34389114379883
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2796 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.347076416015625
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2796 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.34516906738281
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2798 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.34614944458008
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2796 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.32154083251953
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2802 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.20630645751953
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2800 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.1065788269043
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2797 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.0294532775879
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2796 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.051212310791016
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2797 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.08526611328125
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2798 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.13874435424805
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2796 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.1931037902832
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2796 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.2303810119629
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2798 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.25373077392578
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2798 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.264827728271484
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2796 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.2535629272461
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2798 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.22651290893555
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2800 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.23571014404297
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2798 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.2133903503418
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2800 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.192474365234375
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2800 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.16936492919922
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2800 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.172325134277344
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2800 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.18840026855469
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2798 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.2248306274414
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2798 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.2516860961914
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2800 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.25302505493164
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2800 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.233604431152344
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2798 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.2129898071289
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2800 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.20320129394531
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2798 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.1970329284668
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2799 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.18804931640625
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2800 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.20671844482422
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2800 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.23005294799805
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2800 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.24275588989258
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2800 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.18227767944336
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2800 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.156795501708984
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2800 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.10157012939453
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2800 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.05293655395508
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2800 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.04719161987305
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2798 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.0584487915039
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2798 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.0737075805664
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2800 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.081172943115234
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2800 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=48.03703689575195
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2803 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=47.978240966796875
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2803 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=47.921688079833984
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2803 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=47.95613098144531
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2799 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=47.86798095703125
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2803 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=47.85386276245117
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2800 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=47.87019729614258
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2800 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=47.899776458740234
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2800 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=47.90044021606445
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2800 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=47.90565872192383
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2800 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=47.91633605957031
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2800 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=47.92207336425781
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2798 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=47.9329948425293
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2800 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=47.945255279541016
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2798 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=47.9646224975586
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2800 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=47.933467864990234
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2798 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=47.9053726196289
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2800 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=47.90044021606445
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2798 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=47.9158058166504
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2799 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=47.93011474609375
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2800 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=47.94263458251953
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2800 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=47.958091735839844
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2799 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=47.97259521484375
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2798 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=47.9835090637207
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2800 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=47.99231719970703
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2800 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=47.996124267578125
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None
+📩 thing/product/1581F7FVC252A00CYP9D/osd (2800 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=47.99481964111328
+📩 thing/product/9N9CMC70010SEG/osd (447 bytes)
+📥 [osd] SN=9N9CMC70010SEG lat=0 lng=0 alt=None

@@ -9,8 +9,17 @@
         th, td { padding: 12px; border: 1px solid #333; text-align: left; }
         th { background: #deff9a; color: black; }
         tr:nth-child(even) { background: #252525; }
-        .header { display: flex; justify-content: space-between; align-items: center; }
+        .header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
         .nav-links a { color: #deff9a; text-decoration: none; font-weight: bold; margin-left: 15px; }
+        .toolbar { display: flex; align-items: center; gap: 12px; margin-top: 16px; }
+        .count { color: #888; font-size: 14px; }
+        .btn-delete {
+            background: #dc2626; color: white; border: none;
+            padding: 10px 18px; border-radius: 6px; font-weight: bold;
+            cursor: pointer; font-size: 14px;
+        }
+        .btn-delete:hover { background: #b91c1c; }
+        .btn-delete:disabled { background: #555; cursor: not-allowed; }
     </style>
 </head>
 <body>
@@ -23,6 +32,13 @@
         </div>
     </div>
 
+    <div class="toolbar">
+        <span class="count">ทั้งหมด {{ total_count }} รายการ (แสดงล่าสุด 100)</span>
+        <button type="button" class="btn-delete" id="btnDeleteAll" {% if total_count == 0 %}disabled{% endif %}>
+            🗑️ Delete all
+        </button>
+    </div>
+
     <table>
         <thead>
             <tr>
@@ -33,7 +49,7 @@
                 <th>พิกัดลองจิจูด (Lng)</th>
             </tr>
         </thead>
-        <tbody>
+        <tbody id="logsBody">
             {% for log in logs %}
             <tr>
                 <td>{{ log.timestamp|date:"Y-m-d H:i:s" }}</td>
@@ -45,11 +61,36 @@
                 <td>{{ log.longitude }}</td>
             </tr>
             {% empty %}
-            <tr>
+            <tr id="emptyRow">
                 <td colspan="5" style="text-align: center; color: #888;">ยังไม่มีข้อมูลประวัติในระบบ รอให้โดรนสตรีมภาพและรัน AI...</td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
+
+    <script>
+        document.getElementById('btnDeleteAll').addEventListener('click', async function() {
+            if (!confirm('ลบประวัติ AI Detection ทั้งหมด? การกระทำนี้ย้อนกลับไม่ได้')) return;
+
+            const btn = this;
+            btn.disabled = true;
+            btn.textContent = 'กำลังลบ...';
+
+            try {
+                const resp = await fetch('/api/detection-logs/delete-all/', { method: 'POST' });
+                const data = await resp.json();
+                if (!data.ok) throw new Error('ลบไม่สำเร็จ');
+
+                document.getElementById('logsBody').innerHTML =
+                    '<tr><td colspan="5" style="text-align:center;color:#888;">ยังไม่มีข้อมูลประวัติในระบบ รอให้โดรนสตรีมภาพและรัน AI...</td></tr>';
+                document.querySelector('.count').textContent = 'ทั้งหมด 0 รายการ (แสดงล่าสุด 100)';
+                btn.textContent = '🗑️ Delete all';
+            } catch (err) {
+                alert('ลบข้อมูลไม่สำเร็จ: ' + err.message);
+                btn.disabled = false;
+                btn.textContent = '🗑️ Delete all';
+            }
+        });
+    </script>
 </body>
 </html>

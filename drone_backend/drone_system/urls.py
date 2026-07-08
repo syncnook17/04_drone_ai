@@ -41,6 +41,7 @@ urlpatterns = [
     path('dashboard/mission/', views.mission_control, name='mission_control'),
     path('dashboard/heatmap/', views.heatmap_view, name='heatmap_view'),
     path('dashboard/logs/', views.detection_logs, name='detection_logs'),
+    path('api/detection-logs/delete-all/', views.delete_all_detection_logs, name='delete_all_detection_logs'),
     
     # Internal APIs for Frontend
     path('api/drone-location/', views.api_latest_drone_location, name='api_latest_drone_location'),
