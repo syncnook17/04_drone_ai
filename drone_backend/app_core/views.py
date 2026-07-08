@@ -53,7 +53,10 @@ def dji_h5_login(request):
         "workspace_desc": settings.DJI_WORKSPACE_DESC,
         "server_ip": settings.SERVER_IP,
         "django_port": settings.DJANGO_PORT,
-        "api_host": f"http://{settings.SERVER_IP}:{settings.DJANGO_PORT}",
+        "api_host": f"http://{settings.SERVER_IP}:{settings.DJANGO_PORT}/",
+        "pilot_username": settings.PILOT_USERNAME,
+        "pilot_password": settings.PILOT_PASSWORD,
+        "mqtt_public_port": settings.MQTT_PUBLIC_PORT,
     }
     return render(request, "app_core/h5_login.html", context)
 
@@ -125,12 +128,14 @@ def _pilot_login_payload(body=None):
     ws_addr = _ws_mqtt_addr()
     login_user = body.get("username", settings.PILOT_USERNAME)
 
+    # DJI thing module ใช้ TCP MQTT (tcp://host:port) — ไม่ใช่ ws://
     return {
         "username": login_user,
         "user_id": login_user,
         "access_token": token,
         "workspace_id": settings.DJI_WORKSPACE_ID,
         "mqtt_addr": mqtt_addr,
+        "mqtt_addr_tcp": mqtt_addr,
         "ws_mqtt_addr": ws_addr,
         "mqtt_username": mqtt_user,
         "mqtt_password": mqtt_pass,
@@ -183,12 +188,31 @@ def manage_login(request):
 def manage_workspace_current(request):
     return _dji_ok(
         {
-            "id": settings.DJI_WORKSPACE_ID,
             "workspace_id": settings.DJI_WORKSPACE_ID,
-            "name": settings.DJI_WORKSPACE_NAME,
             "workspace_name": settings.DJI_WORKSPACE_NAME,
             "platform_name": settings.DJI_PLATFORM_NAME,
-            "desc": settings.DJI_WORKSPACE_DESC,
+            "workspace_desc": settings.DJI_WORKSPACE_DESC,
+        }
+    )
+
+
+def manage_users_current(request):
+    """DJI Demo: GET /manage/api/v1/users/current — คืน MQTT config ให้ thing module"""
+    mqtt_user, mqtt_pass = _mqtt_credentials()
+    mqtt_addr = f"tcp://{settings.SERVER_IP}:{settings.MQTT_PUBLIC_PORT}"
+    ws_addr = _ws_mqtt_addr()
+
+    return _dji_ok(
+        {
+            "username": settings.PILOT_USERNAME,
+            "user_id": settings.PILOT_USERNAME,
+            "workspace_id": settings.DJI_WORKSPACE_ID,
+            "user_type": 2,
+            "mqtt_addr": mqtt_addr,
+            "mqtt_addr_tcp": mqtt_addr,
+            "ws_mqtt_addr": ws_addr,
+            "mqtt_username": mqtt_user,
+            "mqtt_password": mqtt_pass,
         }
     )
 
@@ -207,6 +231,26 @@ def manage_device_detail(request, workspace_id, device_sn):
             "device_sn": device_sn,
             "device_name": device_sn,
             "workspace_id": workspace_id,
+            "bound_status": True,
+            "status": True,
+            "nickname": device_sn,
+        }
+    )
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def manage_device_binding(request, device_sn):
+    """DJI Demo: POST /manage/api/v1/devices/{sn}/binding"""
+    try:
+        body = json.loads(request.body or "{}")
+    except json.JSONDecodeError:
+        body = {}
+    return _dji_ok(
+        {
+            "device_sn": device_sn,
+            "workspace_id": body.get("workspace_id", settings.DJI_WORKSPACE_ID),
+            "user_id": body.get("user_id", settings.PILOT_USERNAME),
             "bound_status": True,
         }
     )

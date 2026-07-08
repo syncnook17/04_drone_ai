@@ -5,166 +5,139 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DJI Cloud API Handshake</title>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #121212; color: #ffffff; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; text-align: center; }
-        .container { background-color: #1e1e1e; padding: 32px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); max-width: 480px; width: 92%; border: 1px solid #333; }
-        h2 { color: #deff9a; margin-top: 0; }
-        p { color: #aaaaaa; line-height: 1.5; }
-        .btn { background-color: #deff9a; color: #121212; border: none; padding: 15px 32px; font-size: 18px; font-weight: bold; border-radius: 8px; cursor: pointer; width: 100%; margin-top: 16px; }
-        .status { margin-top: 20px; font-size: 13px; color: #888888; text-align: left; white-space: pre-wrap; line-height: 1.6; max-height: 280px; overflow-y: auto; }
-        .hint { margin-top: 16px; font-size: 12px; color: #666; text-align: left; }
-        code { color: #deff9a; word-break: break-all; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #121212;
+            color: #ffffff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            text-align: center;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        .container {
+            background-color: #1e1e1e;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+            max-width: 450px;
+            width: 100%;
+            border: 1px solid #333;
+        }
+        h2 { color: #deff9a; margin-top: 0; font-size: 22px; }
+        p { color: #aaa; font-size: 14px; }
+        .btn {
+            background-color: #deff9a; color: #121212; border: none;
+            padding: 16px 32px; font-size: 18px; font-weight: bold;
+            border-radius: 8px; cursor: pointer; width: 100%; margin-top: 15px;
+            transition: opacity 0.2s;
+            box-shadow: 0 4px 15px rgba(222,255,154,0.2);
+        }
+        .btn:hover { opacity: 0.9; }
+        .console-log {
+            margin-top: 20px; background: #000000; border: 1px solid #444;
+            border-radius: 6px; padding: 15px; text-align: left;
+            font-family: monospace; font-size: 12px; color: #38bdf8;
+            max-height: 180px; overflow-y: auto; width: 100%; box-sizing: border-box;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h2>🛸 DJI Enterprise Connect</h2>
-        <p>เชื่อม Matrice 4E เข้ากับ Ubuntu Server<br>Telemetry (MQTT) + Livestream (RTMP)</p>
-        <button class="btn" onclick="startHandshake()">เชื่อมต่อเซิร์ฟเวอร์</button>
-        <div id="statusMessage" class="status">สแตนด์บาย — กดปุ่มเพื่อเริ่ม handshake</div>
-        <div class="hint">
-            H5: <code>http://{{ server_ip }}:{{ django_port }}/dji/login/</code><br>
-            MQTT: <code>tcp://{{ server_ip }}:1883</code>
-        </div>
+        <h2>🛸 DJI Unified Handshake Panel</h2>
+        <p>ระบบผูกเครือข่ายรับพิกัด Telemetry และสั่งสตาร์ท Live Stream อัตโนมัติ</p>
+        <button class="btn" onclick="startOneClickConnect()">🚀 เริ่มการเชื่อมต่อระบบแบบ One-Click</button>
+        
+        <div id="consoleLog" class="console-log">=== ระบบสแตนด์บายรอการกดเชื่อมต่อ ===</div>
     </div>
 
     <script>
-        const APP_ID = "{{ app_id }}";
-        const APP_KEY = "{{ app_key }}";
-        const APP_LICENSE = "{{ app_license|escapejs }}";
-        const WORKSPACE_ID = "{{ workspace_id }}";
-        const PLATFORM_NAME = "{{ platform_name|escapejs }}";
-        const WORKSPACE_NAME = "{{ workspace_name|escapejs }}";
-        const WORKSPACE_DESC = "{{ workspace_desc|escapejs }}";
-        const API_HOST = "{{ api_host|escapejs }}";
-
-        function appendStatus(msg) {
-            const el = document.getElementById('statusMessage');
-            el.textContent = el.textContent + "\n" + msg;
-            console.log(msg);
+        function printLog(msg, color="#38bdf8") {
+            let consoleBox = document.getElementById('consoleLog');
+            consoleBox.innerHTML += `<br><span style="color: ${color}">> ${msg}</span>`;
+            consoleBox.scrollTop = consoleBox.scrollHeight;
         }
 
-        function parseBridge(res) {
-            if (res == null) return { code: -1, message: "empty response" };
-            if (typeof res === "string") {
-                try { return JSON.parse(res); } catch (e) { return { code: -1, message: res }; }
-            }
-            return res;
+        function parseDjiResponse(resStr) {
+            try { return JSON.parse(resStr); } catch(e) { return { code: 0, data: resStr }; }
         }
 
-        function callBridge(label, fn) {
-            const raw = fn();
-            if (raw === true) return { code: 0 };
-            if (raw === false) throw new Error(label + " ตอบ false");
-            
-            const result = parseBridge(raw);
-            if (result.code !== 0) {
-                throw new Error(label + " ล้มเหลว: " + JSON.stringify(result));
-            }
-            return result;
-        }
-
-        window.thingConnectCallback = function(res) {
-            appendStatus("📨 MQTT callback: " + String(res));
-            const parsed = parseBridge(res);
-            if (parsed.code === 0 || res === true) {
-                appendStatus("✅ MQTT เชื่อมต่อสำเร็จ");
-                setupLivestream();
-            } else {
-                appendStatus("❌ MQTT ล้มเหลว: " + JSON.stringify(res));
-            }
+        // ========================================================
+        // 🛠️ ตอกหมุดเพิ่มพิเศษ: ประกาศฟังก์ชัน Callback มารองรับระบบ DJI Native App
+        // ========================================================
+        window.thingConnectCallback = function(resRaw) {
+            printLog("🔔 [MQTT Callback] สถานะการเชื่อมต่อเปลี่ยนเป็น: " + resRaw, "#eab308");
         };
 
-        window.liveStatusCallback = function(res) {
-            appendStatus("📺 Live status: " + (typeof res === "string" ? res : JSON.stringify(res)));
+        window.liveStatusCallback = function(resRaw) {
+            printLog("📺 [Video Callback] สถานะการสตรีมเปลี่ยนเป็น: " + resRaw, "#eab308");
         };
 
-        async function fetchJson(url, options = {}) {
-            const resp = await fetch(url, options);
-            const json = await resp.json();
-            if (json.code !== 0) throw new Error(json.message || "API error");
-            return json.data;
-        }
-
-        async function setupLivestream() {
-            try {
-                callBridge("Set Workspace", () => window.djiBridge.platformSetWorkspaceId(WORKSPACE_ID));
-                appendStatus("✅ ตั้ง Workspace ID แล้ว");
-
-                callBridge("Set Platform Info", () => window.djiBridge.platformSetInformation(PLATFORM_NAME, WORKSPACE_NAME, WORKSPACE_DESC));
-                appendStatus("✅ ตั้งข้อมูล Platform แล้ว");
-
-                if (window.djiBridge.platformLoadComponent) {
-                    try {
-                        callBridge("Load liveshare", () => window.djiBridge.platformLoadComponent("liveshare", JSON.stringify({
-                            videoPublishType: "video-on-demand",
-                            statusCallback: "liveStatusCallback"
-                        })));
-                    } catch (e) {
-                        callBridge("Load live", () => window.djiBridge.platformLoadComponent("live", "{}"));
-                    }
-                }
-                appendStatus("✅ โหลด Live Module แล้ว");
-
-                const liveCfg = await fetchJson("/dji/api/v1/livestream-config/");
-                if (window.djiBridge.liveshareSetConfig) {
-                    callBridge("Set Livestream", () => window.djiBridge.liveshareSetConfig(JSON.stringify({
-                        type: 1,
-                        url_type: 1,
-                        url: liveCfg.url
-                    })));
-                    appendStatus("✅ ตั้งค่า RTMP สำเร็จ");
-                }
-                appendStatus("🎉 สมบูรณ์! กดออกหน้านี้ได้เลย");
-            } catch (err) {
-                appendStatus("⚠️ ข้อผิดพลาด: " + err.message);
-            }
-        }
-
-        async function startHandshake() {
+        function startOneClickConnect() {
             if (!window.djiBridge) {
-                appendStatus("⚠️ ไม่พบ DJI WebView Interface");
+                printLog("⚠️ ไม่พบ DJI Webview Interface (เปิดบนรีโมตโดรนเท่านั้น)", "#ff4a4a");
                 return;
             }
 
-            document.getElementById('statusMessage').textContent = "กำลังเริ่ม Handshake...";
-
             try {
-                callBridge("Verify License", () => window.djiBridge.platformVerifyLicense(APP_ID, APP_KEY, APP_LICENSE));
-                appendStatus("✅ License ผ่านแล้ว");
+                let appId = "{{ app_id|escapejs }}";
+                let appKey = "{{ app_key|escapejs }}";
+                let appLicense = "{{ app_license|escapejs }}";
+                let serverIp = "{{ server_ip|escapejs }}";
 
-                const loginData = await fetchJson("/manage/api/v1/login/", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ username: "pilot", password: "pilot123", flag: 2 })
-                });
-                appendStatus("✅ Login Backend สำเร็จ");
+                // 1. ตรวจสิทธิ์แอปกับ DJI Portal
+                printLog("1. กำลังส่งคีย์ตรวจสอบสิทธิ์กับเซิร์ฟเวอร์ DJI...");
+                let verifyRaw = window.djiBridge.platformVerifyLicense(appId, appKey, appLicense);
+                let verifyRes = parseDjiResponse(verifyRaw);
 
-                callBridge("Load API Module", () => window.djiBridge.platformLoadComponent("api", JSON.stringify({
-                    host: API_HOST,
-                    token: loginData.access_token
-                })));
-                if (window.djiBridge.apiSetToken) {
-                    window.djiBridge.apiSetToken(loginData.access_token);
+                if (verifyRes.code !== 0) {
+                    printLog("❌ ตรวจสอบสิทธิ์ล้มเหลว: " + verifyRes.message, "#ff4a4a");
+                    return;
                 }
-                appendStatus("✅ โหลด API Module แล้ว");
+                printLog("✅ ยืนยันสิทธิ์กับ DJI สำเร็จ!", "#4ade80");
 
-                const mqttHost = loginData.ws_mqtt_addr; // ws://192.168.1.120:8007/mqtt
-                appendStatus("📡 กำลังเชื่อม MQTT -> " + mqttHost);
+                // 2. ผูกพื้นที่ทำงาน Workspace ID
+                printLog("2. กำลังกำหนดขอบเขต Workspace ID...");
+                window.djiBridge.platformSetWorkspaceId("e3dea0f5-37f2-4d79-ae58-490af3228069");
+
+                // 3. เชื่อมต่อ MQTT Broker (Thing Component)
+                // 🛠️ แก้ไขพิกัดเติม tcp:// นำหน้าตามมาตรฐานความปลอดภัยของ DJI
+                let mqttHostUrl = "tcp://" + serverIp + ":1883";
+                printLog("3. กำลังส่งคำสั่งต่อท่อ MQTT (Thing)... ปลายทาง: " + mqttHostUrl);
                 
-                if (window.djiBridge.platformUnloadComponent) {
-                    try { window.djiBridge.platformUnloadComponent("thing"); } catch(e){}
-                }
-
-                callBridge("Load Thing Module", () => window.djiBridge.platformLoadComponent("thing", JSON.stringify({
-                    host: mqttHost,
-                    username: loginData.mqtt_username || "",
-                    password: loginData.mqtt_password || "",
+                let thingParam = {
+                    host: mqttHostUrl,
+                    username: "admin", 
+                    password: "admin1234",
                     connectCallback: "thingConnectCallback"
-                })));
+                };
+                window.djiBridge.platformLoadComponent("thing", JSON.stringify(thingParam));
 
-                appendStatus("⏳ รอผลลัพธ์ MQTT...");
+                // 4. สตาร์ทโปรไฟล์วิดีโอสด (Liveshare Component)
+                printLog("4. กำลังเปิดคอมโพเนนต์ Liveshare วิดีโอ...");
+                let liveshareParam = {
+                    videoPublishType: "video-by-manual",
+                    statusCallback: "liveStatusCallback"
+                };
+                window.djiBridge.platformLoadComponent("liveshare", JSON.stringify(liveshareParam));
+                window.djiBridge.liveshareSetVideoPublishType("video-by-manual");
+
+                let rtmpTargetUrl = "rtmp://" + serverIp + ":1935/live/drone";
+                let rtmpConfig = { url: rtmpTargetUrl };
+                printLog("5. กำลังตั้งค่าพารามิเตอร์ RTMP: " + rtmpTargetUrl);
+                window.djiBridge.liveshareSetConfig(2, JSON.stringify(rtmpConfig));
+
+                printLog("6. สั่งการรีโมตสตาร์ทการถ่ายทอดสดอัตโนมัติ...");
+                window.djiBridge.liveshareStartLive();
+                
+                printLog("🎉 ส่งโครงสร้างชุดคำสั่งเข้าสู่แรมรีโมตเรียบร้อย!", "#4ade80");
+
             } catch (err) {
-                appendStatus("❌ ข้อผิดพลาด: " + err.message);
+                printLog("❌ เกิดข้อผิดพลาดในสคริปต์: " + err.message, "#ff4a4a");
             }
         }
     </script>

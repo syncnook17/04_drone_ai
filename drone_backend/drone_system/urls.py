@@ -31,9 +31,11 @@ urlpatterns = [
     # DJI Cloud API มาตรฐาน (Pilot API module เรียก path นี้)
     path('manage/api/v1/login/', views.manage_login, name='manage_login'),
     path('manage/api/v1/workspaces/current/', views.manage_workspace_current, name='manage_workspace_current'),
+    path('manage/api/v1/users/current/', views.manage_users_current, name='manage_users_current'),
     path('manage/api/v1/devices/<str:workspace_id>/devices/', views.manage_devices_list, name='manage_devices_list'),
     path('manage/api/v1/devices/<str:workspace_id>/devices/bound/', views.manage_devices_bound, name='manage_devices_bound'),
     path('manage/api/v1/devices/<str:workspace_id>/devices/<str:device_sn>/', views.manage_device_detail, name='manage_device_detail'),
+    path('manage/api/v1/devices/<str:device_sn>/binding/', views.manage_device_binding, name='manage_device_binding'),
     
     # Web Dashboards
     path('dashboard/mission/', views.mission_control, name='mission_control'),

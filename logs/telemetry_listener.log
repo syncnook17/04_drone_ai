@@ -1,0 +1,14 @@
+/home/ddm/02_drone_ai/ai_pipeline/telemetry_listener.py:80: DeprecationWarning: Callback API version 1 is deprecated, update to latest version
+  client = mqtt.Client()
+/home/ddm/02_drone_ai/ai_pipeline/telemetry_listener.py:80: DeprecationWarning: Callback API version 1 is deprecated, update to latest version
+  client = mqtt.Client()
+/home/ddm/02_drone_ai/ai_pipeline/telemetry_listener.py:80: DeprecationWarning: Callback API version 1 is deprecated, update to latest version
+  client = mqtt.Client()
+/home/ddm/02_drone_ai/ai_pipeline/telemetry_listener.py:80: DeprecationWarning: Callback API version 1 is deprecated, update to latest version
+  client = mqtt.Client()
+/home/ddm/02_drone_ai/ai_pipeline/telemetry_listener.py:77: DeprecationWarning: Callback API version 1 is deprecated, update to latest version
+  client = mqtt.Client()
+/home/ddm/02_drone_ai/ai_pipeline/telemetry_listener.py:77: DeprecationWarning: Callback API version 1 is deprecated, update to latest version
+  client = mqtt.Client()
+/home/ddm/02_drone_ai/ai_pipeline/telemetry_listener.py:77: DeprecationWarning: Callback API version 1 is deprecated, update to latest version
+  client = mqtt.Client()
