@@ -39,8 +39,12 @@ def start_service(service_name: str, python_path: str, script_path: str) -> tupl
     log_file = open(_log_path(service_name), "a", encoding="utf-8")
     import subprocess
 
+    env = os.environ.copy()
+    env["PYTHONUNBUFFERED"] = "1"  # ไม่งั้น print() จะค้างอยู่ใน buffer ไม่ขึ้น log จนกว่า process จะปิด
+
     process = subprocess.Popen(
         [python_path, script_path],
+        env=env,
         stdout=log_file,
         stderr=subprocess.STDOUT,
         start_new_session=True,

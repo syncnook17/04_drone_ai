@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(/home/ddm/02_drone_ai/.venv/bin/python -c \"import websockets; print\\(websockets.__version__\\)\")",
+      "Bash(/home/ddm/02_drone_ai/.venv/bin/pip install *)",
+      "Bash(../.venv/bin/python manage.py makemigrations app_core)",
+      "Bash(../.venv/bin/python manage.py migrate app_core)",
+      "Bash(python3 -m json.tool)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://127.0.0.1:8008/dashboard/remote-control/)",
+      "Bash(curl -s \"http://127.0.0.1:8008/api/start-service/?service=drc\")",
+      "Bash(.venv/bin/python3 -)",
+      "Bash(curl -s \"http://127.0.0.1:8008/api/start-service/?service=drc&action=stop\")",
+      "Bash(../.venv/bin/python manage.py shell -c ' *)",
+      "Bash(curl -s -o /dev/null -w \"mission: %{http_code}\\\\n\" http://127.0.0.1:8008/dashboard/mission/)",
+      "Bash(curl -s -o /dev/null -w \"remote-control: %{http_code}\\\\n\" http://127.0.0.1:8008/dashboard/remote-control/)",
+      "Bash(curl -s http://127.0.0.1:8008/api/system-status/)"
+    ]
+  }
+}

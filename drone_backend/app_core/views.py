@@ -9,6 +9,7 @@ from urllib.error import URLError
 from urllib.request import urlopen
 
 from django.conf import settings
+from django.db.models.functions import TruncDate
 from django.http import JsonResponse
 from django.shortcuts import render
 from django.utils import timezone
@@ -36,6 +37,11 @@ def _flv_url() -> str:
         f"http://{settings.SERVER_IP}:{settings.SRS_HTTP_PORT}/"
         f"{settings.RTMP_APP}/{settings.RTMP_STREAM_KEY}.flv"
     )
+
+
+def _mjpeg_url() -> str:
+    """วิดีโอที่ video_processor.py วาดกรอบ detection ฝังในเฟรมแล้ว (serve ตรงจากพอร์ตของมันเอง)"""
+    return f"http://{settings.SERVER_IP}:{settings.AI_MJPEG_PORT}/mjpeg"
 
 
 def _venv_python() -> str:
@@ -281,6 +287,7 @@ def mission_control(request):
             "server_ip": settings.SERVER_IP,
             "django_port": settings.DJANGO_PORT,
             "flv_url": _flv_url(),
+            "mjpeg_url": _mjpeg_url(),
             "rtmp_url": _rtmp_url(),
         },
     )
@@ -288,6 +295,20 @@ def mission_control(request):
 
 def heatmap_view(request):
     return render(request, "app_core/heatmap.html")
+
+
+def remote_control_view(request):
+    return render(
+        request,
+        "app_core/remote_control.html",
+        {
+            "server_ip": settings.SERVER_IP,
+            "drc_ws_port": settings.DRC_WS_PORT,
+            # ใช้วิดีโอดิบ (ไม่ผ่าน AI) เพื่อ latency ต่ำสุดตอนบังคับบินจริง —
+            # AI overlay อยู่แค่หน้า mission_control พอ
+            "flv_url": _flv_url(),
+        },
+    )
 
 
 def detection_logs(request):
@@ -328,6 +349,13 @@ def api_latest_drone_location(request):
             "lng": latest.longitude,
             "alt": latest.altitude,
             "drone_sn": latest.drone_sn,
+            "heading": latest.heading,
+            "battery_percent": latest.battery_percent,
+            "gps_satellites": latest.gps_satellites,
+            "horizontal_speed": latest.horizontal_speed,
+            "vertical_speed": latest.vertical_speed,
+            "home_distance": latest.home_distance,
+            "flight_mode_code": latest.flight_mode_code,
             "updated_at": latest.timestamp.isoformat(),
             "message": "เชื่อมต่อแล้ว" if connected else "พิกัดล้าสมัย — ตรวจสอบ DJI Pilot 2",
         }
@@ -335,9 +363,23 @@ def api_latest_drone_location(request):
 
 
 def api_heatmap_data(request):
-    detections = DetectionLog.objects.all().values("latitude", "longitude")
-    points = [[d["latitude"], d["longitude"]] for d in detections]
+    detections = DetectionLog.objects.all()
+    date_str = request.GET.get("date")
+    if date_str:
+        detections = detections.filter(timestamp__date=date_str)
+    points = [[d["latitude"], d["longitude"]] for d in detections.values("latitude", "longitude")]
     return JsonResponse({"points": points})
+
+
+def api_detection_dates(request):
+    """วันที่ (YYYY-MM-DD) ที่มีข้อมูล detection อยู่ — ใช้ทำ date picker บนหน้า heatmap"""
+    dates = (
+        DetectionLog.objects.annotate(day=TruncDate("timestamp"))
+        .values_list("day", flat=True)
+        .distinct()
+        .order_by("-day")
+    )
+    return JsonResponse({"dates": [d.isoformat() for d in dates if d]})
 
 
 def api_latest_detections(request):
@@ -408,6 +450,7 @@ def api_system_status(request):
         {
             "telemetry_listener_running": is_running("telemetry_listener"),
             "video_processor_running": is_running("video_processor"),
+            "drc_controller_running": is_running("drc_controller"),
             "telemetry_connected": telemetry_connected,
             "telemetry_count": TelemetryLog.objects.count(),
             "detection_count": DetectionLog.objects.count(),
@@ -433,6 +476,9 @@ def start_backend_service(request):
     elif service_type == "ai":
         service_name = "video_processor"
         script_path = os.path.join(ROOT_DIR, "ai_pipeline", "video_processor.py")
+    elif service_type == "drc":
+        service_name = "drc_controller"
+        script_path = os.path.join(ROOT_DIR, "ai_pipeline", "drc_controller.py")
     else:
         return JsonResponse({"status": "error", "message": "ไม่พบประเภทบริการที่ระบุ"})
 

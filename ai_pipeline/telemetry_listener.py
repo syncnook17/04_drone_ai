@@ -42,14 +42,15 @@ def _sn_from_topic(topic: str) -> str:
     return "M4E"
 
 
-def _extract_coords(payload: dict) -> tuple[str | None, float | None, float | None, float | None]:
+def _extract_telemetry(payload: dict) -> dict | None:
     data = payload.get("data") or {}
     if not isinstance(data, dict):
-        return None, None, None, None
+        return None
 
     lat = data.get("latitude")
     lng = data.get("longitude")
-    alt = data.get("height") or data.get("elevation") or data.get("altitude")
+    if lat is None or lng is None:
+        return None
 
     drone_sn = payload.get("gateway")
     if not drone_sn:
@@ -58,17 +59,47 @@ def _extract_coords(payload: dict) -> tuple[str | None, float | None, float | No
                 drone_sn = data[key]
                 break
 
-    return drone_sn, lat, lng, alt
+    battery = data.get("battery") or {}
+    position_state = data.get("position_state") or {}
+
+    return {
+        "drone_sn": drone_sn,
+        "lat": lat,
+        "lng": lng,
+        "alt": data.get("height") or data.get("elevation") or data.get("altitude"),
+        # ชื่อฟิลด์ต่อไปนี้อ้างอิงสคีมา OSD มาตรฐานของ DJI Cloud API
+        # (https://github.com/dji-sdk/Cloud-API-Doc) — ยังไม่เคยตรวจกับ payload จริงจากโดรน
+        # รุ่นนี้ ถ้าค่าไม่ขึ้น/ผิด ให้ดู raw payload log แล้วปรับ key ตรงนี้
+        "heading": data.get("attitude_head"),
+        "battery_percent": battery.get("capacity_percent"),
+        "gps_satellites": position_state.get("gps_number"),
+        "horizontal_speed": data.get("horizontal_speed"),
+        "vertical_speed": data.get("vertical_speed"),
+        "home_distance": data.get("home_distance"),
+        # mode_code: เก็บเป็นรหัสดิบ — ไม่แปลเป็นชื่อโหมด เพราะยังไม่ยืนยัน mapping
+        # ที่ถูกต้องกับรุ่นโดรนนี้ (แปลผิดอาจทำให้ผู้บังคับทางไกลเข้าใจสถานะการบินผิด)
+        "flight_mode_code": data.get("mode_code"),
+    }
 
 
-def _save_telemetry(sn: str, lat: float, lng: float, alt: float | None, source: str) -> None:
+def _save_telemetry(t: dict, source: str) -> None:
     TelemetryLog.objects.create(
-        drone_sn=sn,
-        latitude=float(lat),
-        longitude=float(lng),
-        altitude=float(alt) if alt is not None else 0.0,
+        drone_sn=t["drone_sn"],
+        latitude=float(t["lat"]),
+        longitude=float(t["lng"]),
+        altitude=float(t["alt"]) if t["alt"] is not None else 0.0,
+        heading=t["heading"],
+        battery_percent=t["battery_percent"],
+        gps_satellites=t["gps_satellites"],
+        horizontal_speed=t["horizontal_speed"],
+        vertical_speed=t["vertical_speed"],
+        home_distance=t["home_distance"],
+        flight_mode_code=str(t["flight_mode_code"]) if t["flight_mode_code"] is not None else None,
     )
-    print(f"📥 [{source}] SN={sn} lat={lat} lng={lng} alt={alt}")
+    print(
+        f"📥 [{source}] SN={t['drone_sn']} lat={t['lat']} lng={t['lng']} alt={t['alt']} "
+        f"heading={t['heading']} batt={t['battery_percent']}"
+    )
 
 
 def _reply_update_topo(client: mqtt.Client, gateway_sn: str, payload: dict) -> None:
@@ -138,14 +169,14 @@ def on_message(client, userdata, msg):
 
     print(f"📩 {topic} ({len(payload_str)} bytes)")
 
-    drone_sn, lat, lng, alt = _extract_coords(payload)
-    if lat is None or lng is None:
+    telemetry = _extract_telemetry(payload)
+    if telemetry is None:
         keys = list((payload.get("data") or {}).keys())[:10]
         print(f"   ↳ ไม่มี lat/lng (keys: {keys})")
         return
 
-    sn = drone_sn or _sn_from_topic(topic)
-    _save_telemetry(sn, lat, lng, alt, "osd" if "/osd" in topic else "state")
+    telemetry["drone_sn"] = telemetry["drone_sn"] or _sn_from_topic(topic)
+    _save_telemetry(telemetry, "osd" if "/osd" in topic else "state")
 
 
 def main():

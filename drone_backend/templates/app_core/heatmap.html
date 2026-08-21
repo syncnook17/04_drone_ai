@@ -21,28 +21,88 @@
     <style>
         body { font-family: sans-serif; margin:0; background: #121212; color:white; }
         #map { width: 100%; height: 90vh; }
-        .header { height: 10vh; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; }
+        .header {
+            height: 10vh;
+            padding: 10px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        .header h2 { margin: 0; font-size: 18px; }
+        .controls { display: flex; align-items: center; gap: 10px; }
+        .controls label { font-size: 13px; color: #aaa; }
+        #date-select {
+            background: #1e1e1e;
+            color: #fff;
+            border: 1px solid #444;
+            border-radius: 6px;
+            padding: 6px 10px;
+            font-size: 13px;
+        }
+        #recenter-btn {
+            background: #38bdf8;
+            color: #121212;
+            border: none;
+            border-radius: 6px;
+            padding: 7px 12px;
+            font-weight: bold;
+            font-size: 13px;
+            cursor: pointer;
+        }
         .nav-links a { color: #deff9a; text-decoration: none; font-weight: bold; margin-left: 15px; }
     </style>
 </head>
 <body>
     <div class="header">
         <h2>🔥 แผนที่ความหนาแน่นพื้นที่เสี่ยง (คน / รถยนต์)</h2>
+        <div class="controls">
+            <label for="date-select">วันที่</label>
+            <select id="date-select">
+                <option value="">ทั้งหมด</option>
+            </select>
+            <button id="recenter-btn" onclick="recenterOnDrone()">📍 ไปที่โดรน</button>
+        </div>
         <div class="nav-links">
             <a href="/dashboard/mission/">🗺️ สั่งการบิน</a>
             <a href="/dashboard/heatmap/">🔥 แผนที่ความร้อน</a>
             <a href="/dashboard/logs/">📋 ประวัติจัดเก็บ</a>
+            <a href="/dashboard/remote-control/">🎮 Remote Control</a>
         </div>
     </div>
     <div id="map"></div>
 
     <script>
-        var map = L.map('map').setView([13.7563, 100.5018], 15);
+        const DEFAULT_CENTER = [13.7563, 100.5018];
+        var map = L.map('map').setView(DEFAULT_CENTER, 15);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-        // ดึงพิกัดทั้งหมดจากฐานข้อมูลมาวาด Heatmap ทุกๆ 2 วินาที
+        function isValidCoords(lat, lng) {
+            if (lat == null || lng == null) return false;
+            return !(Math.abs(Number(lat)) < 0.0001 && Math.abs(Number(lng)) < 0.0001);
+        }
+
+        // ตั้งจุดกลางแผนที่ไปที่ตำแหน่งปัจจุบันของโดรน (เรียกตอนโหลดหน้า และปุ่ม "ไปที่โดรน")
+        function recenterOnDrone() {
+            fetch('/api/drone-location/')
+                .then(res => res.json())
+                .then(data => {
+                    if (data.connected && isValidCoords(data.lat, data.lng)) {
+                        map.setView([Number(data.lat), Number(data.lng)], 16);
+                    }
+                })
+                .catch(() => {});
+        }
+
+        // ดึงพิกัดทั้งหมด (หรือกรองตามวันที่เลือก) มาวาด Heatmap ทุกๆ 2 วินาที
         function updateHeatmap() {
-            fetch('/api/heatmap-data/')
+            const selectedDate = document.getElementById('date-select').value;
+            const url = selectedDate
+                ? `/api/heatmap-data/?date=${selectedDate}`
+                : '/api/heatmap-data/';
+
+            fetch(url)
                 .then(res => res.json())
                 .then(data => {
                     if (window.heatLayer) {
@@ -57,6 +117,25 @@
                 });
         }
 
+        function loadDateOptions() {
+            fetch('/api/detection-dates/')
+                .then(res => res.json())
+                .then(data => {
+                    const select = document.getElementById('date-select');
+                    (data.dates || []).forEach(d => {
+                        const opt = document.createElement('option');
+                        opt.value = d;
+                        opt.textContent = d;
+                        select.appendChild(opt);
+                    });
+                })
+                .catch(() => {});
+        }
+
+        document.getElementById('date-select').addEventListener('change', updateHeatmap);
+
+        recenterOnDrone();
+        loadDateOptions();
         updateHeatmap();
         setInterval(updateHeatmap, 2000); // อัปเดตข้อมูลอัตโนมัติ
     </script>

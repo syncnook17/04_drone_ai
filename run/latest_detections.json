@@ -1,0 +1,1 @@
+{"updated_at":1787306469.9207141,"seq":8691,"frame_width":720,"frame_height":544,"infer_ms":37.2,"boxes":[{"x":637.3,"y":230.3,"w":21.4,"h":25.3,"label":"person","confidence":52.5,"vx":0.0,"vy":0.0},{"x":105.6,"y":196.0,"w":25.9,"h":13.2,"label":"car","confidence":35.0,"vx":0.3,"vy":0.0}]}

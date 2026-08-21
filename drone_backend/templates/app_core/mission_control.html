@@ -6,7 +6,6 @@
     <title>Mission Control - DJI M4E Cockpit</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/flv.js@1.6.2/dist/flv.min.js"></script>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -47,6 +46,8 @@
         #map-info .value { color: #fff; font-family: monospace; font-size: 12px; }
         #map-info .value.live { color: #4ade80; }
         #map-info .value.wait { color: #fbbf24; }
+        #map-info .value.warn { color: #fbbf24; }
+        #map-info .value.bad { color: #f87171; }
         #map-info .status-line {
             margin-top: 8px;
             padding-top: 8px;
@@ -113,20 +114,13 @@
             border: 1px solid #333;
             overflow: hidden;
         }
-        #video-wrap video {
+        #video-wrap img {
             width: 100%;
             height: 100%;
             display: block;
+            object-fit: contain;
             border: none;
             border-radius: 0;
-        }
-        #detectionCanvas {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            pointer-events: none;
         }
         #ai-overlay-status {
             position: absolute;
@@ -141,6 +135,22 @@
         }
         .hint { color: #666; font-size: 12px; margin: 0; line-height: 1.5; }
         code { color: #deff9a; font-size: 11px; word-break: break-all; }
+        .drone-icon-rotate {
+            width: 100%;
+            height: 100%;
+            transform-origin: 50% 50%;
+            transition: transform 0.3s linear;
+        }
+        .alt-tooltip {
+            background: rgba(18, 18, 18, 0.85) !important;
+            border: 1px solid #4ade80 !important;
+            color: #4ade80 !important;
+            font-family: monospace;
+            font-size: 12px !important;
+            font-weight: bold;
+            box-shadow: none !important;
+        }
+        .alt-tooltip::before { display: none !important; }
     </style>
 </head>
 <body>
@@ -152,6 +162,13 @@
             <div class="row"><span class="label">Longitude</span><span id="info-lng" class="value wait">—</span></div>
             <div class="row"><span class="label">Altitude</span><span id="info-alt" class="value wait">—</span></div>
             <div class="row"><span class="label">Serial</span><span id="info-sn" class="value wait">—</span></div>
+            <div class="status-line" style="margin-top:8px;padding-top:8px;border-top:1px solid #333;"></div>
+            <div class="row"><span class="label">ทิศหัวโดรน (Heading)</span><span id="info-heading" class="value wait">—</span></div>
+            <div class="row"><span class="label">แบตเตอรี่</span><span id="info-battery" class="value wait">—</span></div>
+            <div class="row"><span class="label">ดาวเทียม GPS</span><span id="info-sats" class="value wait">—</span></div>
+            <div class="row"><span class="label">ความเร็ว (H/V)</span><span id="info-speed" class="value wait">—</span></div>
+            <div class="row"><span class="label">ระยะห่างจาก Home</span><span id="info-home" class="value wait">—</span></div>
+            <div class="row"><span class="label">โหมดการบิน (รหัสดิบ)</span><span id="info-mode" class="value wait">—</span></div>
             <div id="info-status" class="status-line">รอพิกัดจาก MQTT...</div>
         </div>
     </div>
@@ -160,6 +177,7 @@
             <a href="/dashboard/mission/">🗺️ สั่งการบิน</a>
             <a href="/dashboard/heatmap/">🔥 Heatmap</a>
             <a href="/dashboard/logs/">📋 Logs</a>
+            <a href="/dashboard/remote-control/">🎮 Remote Control</a>
         </div>
 
         <h2>🛸 Mission Control</h2>
@@ -182,20 +200,20 @@
         </div>
 
         <div id="video-wrap">
-            <video id="videoElement" controls autoplay muted playsinline></video>
-            <canvas id="detectionCanvas"></canvas>
+            <img id="videoElement" alt="AI video stream">
             <div id="ai-overlay-status">AI overlay: รอ...</div>
         </div>
         <p class="hint">
             RTMP (Pilot 2): <code>{{ rtmp_url }}</code><br>
-            FLV (Web): <code>{{ flv_url }}</code><br>
+            FLV (Web, ดิบ ไม่มีกรอบ): <code>{{ flv_url }}</code><br>
+            AI Video (มีกรอบ detection ฝังในภาพ): <code>{{ mjpeg_url }}</code><br>
             Pilot H5: <code>http://{{ server_ip }}:{{ django_port }}/dji/login/</code>
         </p>
     </div>
 
     <script>
         const DEFAULT_CENTER = [13.7563, 100.5018];
-        const FLV_URL = "{{ flv_url }}";
+        const MJPEG_URL = "{{ mjpeg_url }}";
 
         const map = L.map('map').setView(DEFAULT_CENTER, 15);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -203,13 +221,29 @@
             attribution: '© OpenStreetMap'
         }).addTo(map);
 
-        const droneMarker = L.circleMarker(DEFAULT_CENTER, {
-            radius: 10,
-            color: '#4ade80',
-            fillColor: '#22c55e',
-            fillOpacity: 0.85,
-            weight: 2,
-        }).addTo(map).bindPopup('รอพิกัดจากโดรน...');
+        function droneIcon() {
+            return L.divIcon({
+                className: 'drone-icon',
+                iconSize: [34, 34],
+                iconAnchor: [17, 17],
+                html:
+                    '<div class="drone-icon-rotate" id="drone-icon-rotate">' +
+                    '<svg width="34" height="34" viewBox="0 0 34 34">' +
+                    '<circle cx="17" cy="17" r="9" fill="#22c55e" fill-opacity="0.85" stroke="#4ade80" stroke-width="2"/>' +
+                    '<path d="M17 2 L23 15 L17 11 L11 15 Z" fill="#4ade80" stroke="#0f2e18" stroke-width="1"/>' +
+                    '</svg></div>',
+            });
+        }
+
+        const droneMarker = L.marker(DEFAULT_CENTER, { icon: droneIcon() }).addTo(map)
+            .bindPopup('รอพิกัดจากโดรน...')
+            .bindTooltip('—', { permanent: true, direction: 'top', offset: [0, -14], className: 'alt-tooltip' });
+
+        function setDroneHeading(heading) {
+            const el = document.getElementById('drone-icon-rotate');
+            if (!el) return;
+            el.style.transform = heading != null ? `rotate(${heading}deg)` : 'rotate(0deg)';
+        }
 
         function isValidCoords(lat, lng) {
             if (lat == null || lng == null) return false;
@@ -221,7 +255,16 @@
             return Number(value).toFixed(decimals);
         }
 
-        function setMapInfo(lat, lng, alt, sn, status, live) {
+        const COMPASS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+        function headingText(heading) {
+            if (heading == null || Number.isNaN(Number(heading))) return '—';
+            const deg = ((Number(heading) % 360) + 360) % 360;
+            const dir = COMPASS[Math.round(deg / 45) % 8];
+            return `${deg.toFixed(0)}° ${dir}`;
+        }
+
+        function setMapInfo(info, live) {
+            const { lat, lng, alt, sn, status, heading, battery, sats, hSpeed, vSpeed, homeDist, mode } = info;
             document.getElementById('info-lat').textContent = formatCoord(lat, 6);
             document.getElementById('info-lng').textContent = formatCoord(lng, 6);
             document.getElementById('info-alt').textContent =
@@ -231,18 +274,30 @@
             ['info-lat', 'info-lng', 'info-alt', 'info-sn'].forEach(id => {
                 document.getElementById(id).className = 'value ' + (live ? 'live' : 'wait');
             });
-        }
 
-        let flvPlayer = null;
-        let flvReconnectTimer = null;
+            document.getElementById('info-heading').textContent = headingText(heading);
+            document.getElementById('info-heading').className = 'value ' + (live && heading != null ? 'live' : 'wait');
 
-        if (typeof flvjs !== 'undefined' && flvjs.LoggingControl) {
-            flvjs.LoggingControl.applyConfig({
-                enableVerbose: false,
-                enableInfo: false,
-                enableWarn: false,
-                enableError: true,
-            });
+            const battEl = document.getElementById('info-battery');
+            battEl.textContent = battery != null ? `${battery}%` : '—';
+            battEl.className = 'value ' + (!live || battery == null ? 'wait' : battery <= 20 ? 'bad' : battery <= 40 ? 'warn' : 'live');
+
+            document.getElementById('info-sats').textContent = sats != null ? sats : '—';
+            document.getElementById('info-sats').className = 'value ' + (live && sats != null ? 'live' : 'wait');
+
+            const speedText = (hSpeed != null || vSpeed != null)
+                ? `${hSpeed != null ? Number(hSpeed).toFixed(1) : '—'} / ${vSpeed != null ? Number(vSpeed).toFixed(1) : '—'} m/s`
+                : '—';
+            document.getElementById('info-speed').textContent = speedText;
+            document.getElementById('info-speed').className = 'value ' + (live && (hSpeed != null || vSpeed != null) ? 'live' : 'wait');
+
+            document.getElementById('info-home').textContent = homeDist != null ? `${Number(homeDist).toFixed(0)} m` : '—';
+            document.getElementById('info-home').className = 'value ' + (live && homeDist != null ? 'live' : 'wait');
+
+            document.getElementById('info-mode').textContent = mode != null ? mode : '—';
+            document.getElementById('info-mode').className = 'value ' + (live && mode != null ? 'live' : 'wait');
+
+            setDroneHeading(live ? heading : null);
         }
 
         function setStatus(id, text, level) {
@@ -271,6 +326,19 @@
                 .catch(() => {});
         }
 
+        function baseInfo(data) {
+            return {
+                sn: data.drone_sn,
+                heading: data.heading,
+                battery: data.battery_percent,
+                sats: data.gps_satellites,
+                hSpeed: data.horizontal_speed,
+                vSpeed: data.vertical_speed,
+                homeDist: data.home_distance,
+                mode: data.flight_mode_code,
+            };
+        }
+
         function refreshLocation() {
             fetch('/api/drone-location/')
                 .then(r => r.json())
@@ -279,268 +347,80 @@
                     const altText = data.alt != null ? Number(data.alt).toFixed(1) + ' m' : '—';
 
                     if (!data.connected) {
-                        setMapInfo(null, null, data.alt, data.drone_sn,
-                            data.message || 'ไม่มีสัญญาณ MQTT', false);
+                        setMapInfo({ ...baseInfo(data), lat: null, lng: null, alt: data.alt,
+                            status: data.message || 'ไม่มีสัญญาณ MQTT' }, false);
                         droneMarker.setPopupContent('⏳ ' + (data.message || 'รอพิกัดจากโดรน'));
+                        droneMarker.setTooltipContent('—');
                         return;
                     }
 
                     if (!hasCoords) {
-                        setMapInfo(null, null, data.alt, data.drone_sn,
-                            'MQTT เชื่อมต่อแล้ว — รอ GPS lock (lat/lng ยังเป็น 0)', false);
+                        setMapInfo({ ...baseInfo(data), lat: null, lng: null, alt: data.alt,
+                            status: 'MQTT เชื่อมต่อแล้ว — รอ GPS lock (lat/lng ยังเป็น 0)' }, false);
                         droneMarker.setPopupContent(
                             `<b>${data.drone_sn || 'Drone'}</b><br>` +
                             `Lat/Lng: รอ GPS<br>สูง: ${altText}`
                         );
+                        droneMarker.setTooltipContent(altText);
                         return;
                     }
 
                     const pos = [Number(data.lat), Number(data.lng)];
                     droneMarker.setLatLng(pos);
                     map.panTo(pos);
-                    setMapInfo(data.lat, data.lng, data.alt, data.drone_sn,
-                        data.message || 'อัปเดตล่าสุด', true);
+                    setMapInfo({ ...baseInfo(data), lat: data.lat, lng: data.lng, alt: data.alt,
+                        status: data.message || 'อัปเดตล่าสุด' }, true);
                     droneMarker.setPopupContent(
                         `<b>${data.drone_sn || 'Drone'}</b><br>` +
                         `Lat: ${formatCoord(data.lat, 6)}<br>` +
                         `Lng: ${formatCoord(data.lng, 6)}<br>` +
                         `สูง: ${altText}`
                     );
+                    droneMarker.setTooltipContent(altText);
                 })
                 .catch(() => {
-                    setMapInfo(null, null, null, null, 'โหลดพิกัดไม่สำเร็จ', false);
+                    setMapInfo({ lat: null, lng: null, alt: null, sn: null, status: 'โหลดพิกัดไม่สำเร็จ' }, false);
                 });
         }
 
-        function destroyFlvPlayer() {
-            if (!flvPlayer) return;
-            try {
-                flvPlayer.pause();
-                flvPlayer.unload();
-                flvPlayer.detachMediaElement();
-                flvPlayer.destroy();
-            } catch (e) {}
-            flvPlayer = null;
+        // ภาพ AI video เป็น MJPEG ที่ video_processor.py วาดกรอบ detection ฝังลงในเฟรมก่อนส่งมาแล้ว
+        // ดังนั้นกรอบกับภาพจะตรงกันเสมอ ไม่ต้องวาด overlay แยกอีกชั้นบน browser
+        let mjpegReloadTimer = null;
+
+        function loadMjpegStream() {
+            const img = document.getElementById('videoElement');
+            if (!MJPEG_URL) return;
+            img.src = MJPEG_URL + (MJPEG_URL.includes('?') ? '&' : '?') + 't=' + Date.now();
         }
 
-        function scheduleFlvReconnect() {
-            if (flvReconnectTimer) return;
-            flvReconnectTimer = setTimeout(() => {
-                flvReconnectTimer = null;
-                startFlvPlayer(true);
-            }, 5000);
+        function scheduleMjpegReload() {
+            if (mjpegReloadTimer) return;
+            mjpegReloadTimer = setTimeout(() => {
+                mjpegReloadTimer = null;
+                loadMjpegStream();
+            }, 2000);
         }
 
-        function startFlvPlayer(forceReconnect) {
-            if (!flvjs.isSupported()) return;
-            if (flvPlayer && !forceReconnect) return;
-
-            destroyFlvPlayer();
-
-            const videoElement = document.getElementById('videoElement');
-            flvPlayer = flvjs.createPlayer({
-                type: 'flv',
-                url: FLV_URL,
-                isLive: true,
-                enableStashBuffer: false,
-                stashInitialSize: 64,
-                lazyLoad: false,
-                deferLoadAfterSourceOpen: false,
-            }, {
-                enableWorker: false,
-                lazyLoad: false,
-                lazyLoadMaxDuration: 0,
-                lazyLoadRecoverDuration: 0,
-                liveBufferLatencyChasing: true,
-                liveBufferLatencyMaxLatency: 0.6,
-                liveBufferLatencyMinRemain: 0.05,
-            });
-            flvPlayer.attachMediaElement(videoElement);
-            flvPlayer.load();
-            flvPlayer.play().catch(() => {});
-
-            flvPlayer.on(flvjs.Events.ERROR, (errType, errDetail) => {
-                const networkIssue =
-                    errType === flvjs.ErrorTypes.NETWORK_ERROR ||
-                    errDetail === flvjs.ErrorDetails.NETWORK_EXCEPTION ||
-                    errDetail === flvjs.ErrorDetails.NETWORK_STATUS_CODE_INVALID;
-                if (networkIssue) {
-                    scheduleFlvReconnect();
-                }
-            });
-        }
-
-        let lastDetectionData = null;
-        let pendingDetectionData = null;
-        let prevOverlaySnap = null;
-        let currOverlaySnap = null;
-        const EXTRAPOLATE_MS = 320;
-        const PREDICT_AHEAD_MS = 120;
-        const PREDICT_VEL_SCALE = 0.85;
-
-        function boxCenter(box) {
-            return { x: box.x + box.w / 2, y: box.y + box.h / 2 };
-        }
-
-        function matchOverlayBoxes(prevBoxes, currBoxes) {
-            if (!prevBoxes || !prevBoxes.length) {
-                return currBoxes.map(box => ({ prev: null, curr: box }));
-            }
-            const used = new Set();
-            return currBoxes.map(curr => {
-                const cc = boxCenter(curr);
-                let best = null;
-                let bestDist = Infinity;
-                prevBoxes.forEach((prev, idx) => {
-                    if (used.has(idx) || prev.label !== curr.label) return;
-                    const pc = boxCenter(prev);
-                    const dist = (cc.x - pc.x) ** 2 + (cc.y - pc.y) ** 2;
-                    if (dist < bestDist) {
-                        bestDist = dist;
-                        best = { prev, idx };
-                    }
-                });
-                if (best && bestDist < 120 * 120) {
-                    used.add(best.idx);
-                    return { prev: best.prev, curr };
-                }
-                return { prev: null, curr };
-            });
-        }
-
-        function applyOverlaySnapshot(data) {
-            if (!data || !data.fresh) {
-                currOverlaySnap = null;
-                pendingDetectionData = data;
-                return;
-            }
-            prevOverlaySnap = currOverlaySnap;
-            currOverlaySnap = {
-                t: performance.now(),
-                frame_width: data.frame_width,
-                frame_height: data.frame_height,
-                boxes: (data.boxes || []).map(b => ({ ...b })),
-                fresh: true,
-                age_seconds: data.age_seconds,
-                seq: data.seq,
-                infer_ms: data.infer_ms,
-            };
-            pendingDetectionData = extrapolateOverlay();
-        }
-
-        function predictBox(box, elapsedMs) {
-            const aheadSec = (elapsedMs + PREDICT_AHEAD_MS) / 1000;
-            const vx = (box.vx || 0) * PREDICT_VEL_SCALE;
-            const vy = (box.vy || 0) * PREDICT_VEL_SCALE;
-            return {
-                label: box.label,
-                confidence: box.confidence,
-                x: box.x + vx * aheadSec,
-                y: box.y + vy * aheadSec,
-                w: box.w,
-                h: box.h,
-            };
-        }
-
-        function extrapolateOverlay() {
-            if (!currOverlaySnap) return null;
-            const elapsed = performance.now() - currOverlaySnap.t;
-            const pairs = matchOverlayBoxes(
-                prevOverlaySnap ? prevOverlaySnap.boxes : [],
-                currOverlaySnap.boxes
-            );
-            const alpha = Math.min(1.6, elapsed / EXTRAPOLATE_MS);
-            return {
-                fresh: true,
-                frame_width: currOverlaySnap.frame_width,
-                frame_height: currOverlaySnap.frame_height,
-                age_seconds: currOverlaySnap.age_seconds,
-                infer_ms: currOverlaySnap.infer_ms,
-                boxes: pairs.map(({ prev, curr }) => {
-                    if (curr.vx != null || curr.vy != null) {
-                        return predictBox(curr, elapsed);
-                    }
-                    if (!prev) return curr;
-                    return {
-                        label: curr.label,
-                        confidence: curr.confidence,
-                        x: curr.x + (curr.x - prev.x) * alpha,
-                        y: curr.y + (curr.y - prev.y) * alpha,
-                        w: curr.w + (curr.w - prev.w) * alpha,
-                        h: curr.h + (curr.h - prev.h) * alpha,
-                    };
-                }),
-            };
-        }
-
-        function drawDetectionOverlay(data) {
-            lastDetectionData = data;
-            const canvas = document.getElementById('detectionCanvas');
-            const video = document.getElementById('videoElement');
-            const statusEl = document.getElementById('ai-overlay-status');
-            if (!canvas || !video) return;
-
-            const rect = video.getBoundingClientRect();
-            canvas.width = Math.round(rect.width);
-            canvas.height = Math.round(rect.height);
-            const ctx = canvas.getContext('2d');
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-            if (!data.fresh) {
-                statusEl.textContent = 'AI overlay: รอ AI processor...';
-                statusEl.style.color = '#fbbf24';
-                return;
-            }
-            if (data.age_seconds != null && data.age_seconds > 1.0) {
-                statusEl.textContent = `AI overlay: ช้า ${data.age_seconds}s`;
-                statusEl.style.color = '#fbbf24';
-            } else if (!data.frame_width || !data.boxes.length) {
-                statusEl.textContent = 'AI overlay: ไม่พบวัตถุ';
-                statusEl.style.color = '#888';
-                return;
-            }
-
-            const sx = canvas.width / data.frame_width;
-            const sy = canvas.height / data.frame_height;
-
-            data.boxes.forEach(box => {
-                const x = box.x * sx;
-                const y = box.y * sy;
-                const w = box.w * sx;
-                const h = box.h * sy;
-                ctx.strokeStyle = '#ef4444';
-                ctx.lineWidth = 3;
-                ctx.strokeRect(x, y, w, h);
-                const label = `${box.label} ${box.confidence}%`;
-                ctx.font = 'bold 14px Segoe UI, sans-serif';
-                const textW = ctx.measureText(label).width + 10;
-                ctx.fillStyle = 'rgba(239, 68, 68, 0.9)';
-                ctx.fillRect(x, Math.max(0, y - 22), textW, 22);
-                ctx.fillStyle = '#fff';
-                ctx.fillText(label, x + 5, Math.max(14, y - 6));
-            });
-
-            statusEl.textContent = `AI overlay: ${data.boxes.length} วัตถุ` +
-                (data.infer_ms ? ` (${data.infer_ms}ms)` : '');
-            statusEl.style.color = '#4ade80';
-        }
-
-        function refreshDetections() {
+        function refreshDetectionStatus() {
             fetch('/api/latest-detections/')
                 .then(r => r.json())
-                .then(applyOverlaySnapshot)
+                .then(data => {
+                    const statusEl = document.getElementById('ai-overlay-status');
+                    if (!data.fresh) {
+                        statusEl.textContent = 'AI overlay: รอ AI processor...';
+                        statusEl.style.color = '#fbbf24';
+                        return;
+                    }
+                    if (data.age_seconds != null && data.age_seconds > 1.0) {
+                        statusEl.textContent = `AI overlay: ช้า ${data.age_seconds}s`;
+                        statusEl.style.color = '#fbbf24';
+                        return;
+                    }
+                    statusEl.textContent = `AI overlay: ${data.boxes.length} วัตถุ` +
+                        (data.infer_ms ? ` (${data.infer_ms}ms)` : '');
+                    statusEl.style.color = '#4ade80';
+                })
                 .catch(() => {});
-        }
-
-        function overlayAnimationLoop() {
-            if (currOverlaySnap) {
-                pendingDetectionData = extrapolateOverlay();
-            }
-            if (pendingDetectionData) {
-                lastDetectionData = pendingDetectionData;
-                drawDetectionOverlay(pendingDetectionData);
-            }
-            requestAnimationFrame(overlayAnimationLoop);
         }
 
         function launchService(type) {
@@ -561,18 +441,15 @@
                 });
         }
 
-        startFlvPlayer();
+        document.getElementById('videoElement').addEventListener('error', scheduleMjpegReload);
+
+        loadMjpegStream();
         refreshSystemStatus();
         refreshLocation();
-        refreshDetections();
-        requestAnimationFrame(overlayAnimationLoop);
+        refreshDetectionStatus();
         setInterval(refreshLocation, 1000);
         setInterval(refreshSystemStatus, 3000);
-        setInterval(refreshDetections, 16);
-        window.addEventListener('resize', () => {
-            if (lastDetectionData) drawDetectionOverlay(lastDetectionData);
-        });
-        document.getElementById('videoElement').addEventListener('loadedmetadata', refreshDetections);
+        setInterval(refreshDetectionStatus, 500);
     </script>
 </body>
 </html>

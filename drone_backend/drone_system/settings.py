@@ -60,6 +60,9 @@ SRS_HTTP_PORT = int(os.getenv('SRS_HTTP_PORT', '8085'))
 SRS_API_PORT = int(os.getenv('SRS_API_PORT', '1985'))
 RTMP_APP = os.getenv('RTMP_APP', 'live')
 RTMP_STREAM_KEY = os.getenv('RTMP_STREAM_KEY', 'drone')
+AI_MJPEG_PORT = int(os.getenv('AI_MJPEG_PORT', '8009'))
+
+DRC_WS_PORT = int(os.getenv('DRC_WS_PORT', '8010'))
 
 TELEMETRY_STALE_SECONDS = int(os.getenv('TELEMETRY_STALE_SECONDS', '30'))
 

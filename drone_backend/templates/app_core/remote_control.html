@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Remote Control (DRC) - Phase B</title>
+    <script src="https://cdn.jsdelivr.net/npm/flv.js@1.6.2/dist/flv.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            background: #121212;
+            color: white;
+            min-height: 100vh;
+            box-sizing: border-box;
+            padding: 20px;
+        }
+        .nav-links { display: flex; gap: 15px; border-bottom: 1px solid #333; padding-bottom: 8px; margin-bottom: 16px; }
+        .nav-links a { color: #deff9a; text-decoration: none; font-weight: bold; font-size: 14px; }
+        h2 { margin: 0 0 6px; font-size: 20px; }
+        .phase-note {
+            background: #1e1e1e;
+            border: 1px solid #38bdf8;
+            color: #7dd3fc;
+            border-radius: 8px;
+            padding: 10px 14px;
+            font-size: 13px;
+            margin-bottom: 16px;
+        }
+        .layout { display: flex; gap: 20px; flex-wrap: wrap; }
+        .panel {
+            background: #1e1e1e;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 16px;
+            flex: 1;
+            min-width: 320px;
+        }
+        .panel h3 { margin: 0 0 12px; font-size: 14px; color: #aaa; }
+        #video-wrap {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 16/9;
+            background: #000;
+            border-radius: 8px;
+            border: 1px solid #333;
+            overflow: hidden;
+        }
+        #video-wrap video { width: 100%; height: 100%; object-fit: contain; display: block; }
+        .status-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px; }
+        .status-item { background: #151515; border: 1px solid #333; border-radius: 8px; padding: 10px 12px; font-size: 13px; }
+        .status-item .label { color: #888; display: block; margin-bottom: 4px; }
+        .status-item .value.ok { color: #4ade80; }
+        .status-item .value.warn { color: #fbbf24; }
+        .status-item .value.bad { color: #f87171; }
+        .status-item .value.wait { color: #888; }
+        #message-box {
+            background: #151515;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 10px 12px;
+            font-size: 13px;
+            color: #deff9a;
+            margin-bottom: 16px;
+            min-height: 18px;
+        }
+        .safety-gate {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            background: #2a1a0a;
+            border: 1px solid #92400e;
+            border-radius: 8px;
+            padding: 10px 12px;
+            font-size: 13px;
+            margin-bottom: 16px;
+        }
+        .safety-gate input { margin-top: 3px; }
+        .btn-group { display: flex; gap: 10px; flex-wrap: wrap; }
+        button {
+            border: none;
+            border-radius: 6px;
+            padding: 12px 16px;
+            font-weight: bold;
+            font-size: 14px;
+            cursor: pointer;
+            flex: 1;
+            min-width: 160px;
+        }
+        #btn-request { background: #4ade80; color: #121212; }
+        #btn-release { background: #f87171; color: #121212; }
+        button:disabled { background: #333; color: #777; cursor: not-allowed; }
+        .hint { color: #666; font-size: 12px; margin-top: 16px; line-height: 1.6; }
+        code { color: #deff9a; font-size: 11px; word-break: break-all; }
+
+        /* ---- joystick panel ---- */
+        #estop-btn {
+            width: 100%;
+            background: #dc2626;
+            color: #fff;
+            font-size: 20px;
+            padding: 18px;
+            letter-spacing: 1px;
+            margin-bottom: 16px;
+            border: 2px solid #fca5a5;
+        }
+        #estop-btn:active { background: #991b1b; }
+        .sensitivity-row { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; font-size: 13px; }
+        .sensitivity-row input[type=range] { flex: 1; }
+        .sticks-row { display: flex; justify-content: space-around; gap: 16px; margin-bottom: 16px; flex-wrap: wrap; }
+        .stick-block { text-align: center; }
+        .stick-label { font-size: 12px; color: #888; margin-bottom: 6px; }
+        .stick-pad {
+            position: relative;
+            width: 140px;
+            height: 140px;
+            border-radius: 50%;
+            background: #151515;
+            border: 1px solid #333;
+            touch-action: none;
+        }
+        .stick-pad.disabled { opacity: 0.35; }
+        .stick-knob {
+            position: absolute;
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: #38bdf8;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+        }
+        .stick-values { font-size: 11px; color: #666; margin-top: 6px; font-family: monospace; }
+        .obstacle-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; font-size: 11px; }
+        .obstacle-item { background: #151515; border: 1px solid #333; border-radius: 6px; padding: 6px; text-align: center; }
+        .obstacle-item .label { color: #888; display: block; }
+        .obstacle-item .dist { font-family: monospace; }
+        .obstacle-item .dist.close { color: #f87171; }
+        .obstacle-item .dist.ok { color: #4ade80; }
+    </style>
+</head>
+<body>
+    <div class="nav-links">
+        <a href="/dashboard/mission/">🗺️ สั่งการบิน</a>
+        <a href="/dashboard/heatmap/">🔥 Heatmap</a>
+        <a href="/dashboard/logs/">📋 Logs</a>
+    </div>
+
+    <h2>🎮 Remote Control — DRC Mode (Phase B: joystick)</h2>
+    <div class="phase-note">
+        มี joystick บังคับบินจริงแล้ว — <b>เริ่มที่ความเร็วต่ำสุดก่อนเสมอ</b> แล้วค่อยเพิ่ม sensitivity ทีละน้อย
+        นักบิน safety ต้องถือ RC พร้อมยึดคืนได้ตลอดเวลา ปุ่มหยุดฉุกเฉิน (E-STOP) ใช้ได้ทันทีไม่ว่าสถานะใด
+    </div>
+
+    <div class="layout">
+        <div class="panel">
+            <h3>วิดีโอสด (ดิบ ไม่ผ่าน AI — เพื่อ latency ต่ำสุด)</h3>
+            <div id="video-wrap">
+                <video id="videoElement" autoplay muted playsinline></video>
+            </div>
+
+            <h3 style="margin-top:16px;">Obstacle Sensing</h3>
+            <div class="obstacle-grid">
+                <div class="obstacle-item"><span class="label">Up</span><span id="obs-up" class="dist">—</span></div>
+                <div class="obstacle-item"><span class="label">Front</span><span id="obs-front" class="dist">—</span></div>
+                <div class="obstacle-item"><span class="label">Down</span><span id="obs-down" class="dist">—</span></div>
+                <div class="obstacle-item"><span class="label">Left</span><span id="obs-left" class="dist">—</span></div>
+                <div class="obstacle-item"><span class="label">Back</span><span id="obs-back" class="dist">—</span></div>
+                <div class="obstacle-item"><span class="label">Right</span><span id="obs-right" class="dist">—</span></div>
+            </div>
+        </div>
+
+        <div class="panel">
+            <h3>สถานะการควบคุม</h3>
+            <div class="status-grid">
+                <div class="status-item"><span class="label">Control State</span><span id="st-control" class="value wait">idle</span></div>
+                <div class="status-item"><span class="label">DRC Link</span><span id="st-drc" class="value wait">0 (not connected)</span></div>
+                <div class="status-item"><span class="label">Gateway SN</span><span id="st-gateway" class="value wait">—</span></div>
+                <div class="status-item"><span class="label">WebSocket</span><span id="st-ws" class="value wait">กำลังเชื่อมต่อ...</span></div>
+            </div>
+
+            <div id="message-box">รอเชื่อมต่อ WebSocket...</div>
+
+            <label class="safety-gate">
+                <input type="checkbox" id="safety-check">
+                <span>ยืนยันว่านักบิน safety ถือ DJI RC Plus 2 อยู่จริง พร้อมกดยึดสิทธิ์ควบคุมคืนได้ทันทีตลอดเวลาที่ทดสอบ</span>
+            </label>
+
+            <div class="btn-group">
+                <button id="btn-request" disabled onclick="requestControl()">ขอสิทธิ์ควบคุม (Request Control)</button>
+                <button id="btn-release" disabled onclick="releaseControl()">ปล่อยสิทธิ์ควบคุม (Release Control)</button>
+            </div>
+
+            <p class="hint">
+                กด "ขอสิทธิ์ควบคุม" แล้วต้องเห็น popup ยืนยันขึ้นบน DJI RC Plus 2 — ต้องกดยอมรับที่ RC ก่อนถึงจะเข้า DRC mode ได้<br>
+                WebSocket: <code>ws://{{ server_ip }}:{{ drc_ws_port }}/</code>
+            </p>
+        </div>
+
+        <div class="panel">
+            <h3>บังคับบิน</h3>
+            <button id="estop-btn" onclick="emergencyStop()">🛑 EMERGENCY STOP</button>
+
+            <div class="sensitivity-row">
+                <span>ความเร็วสูงสุด</span>
+                <input type="range" id="sensitivity" min="5" max="100" value="20">
+                <span id="sensitivity-value">20%</span>
+            </div>
+
+            <div class="sticks-row">
+                <div class="stick-block">
+                    <div class="stick-label">ซ้าย: ขึ้น/ลง (h) — หมุนตัว (w)</div>
+                    <div class="stick-pad disabled" id="stick-left"><div class="stick-knob"></div></div>
+                    <div class="stick-values" id="stick-left-values">h=0.0 w=0.0</div>
+                </div>
+                <div class="stick-block">
+                    <div class="stick-label">ขวา: หน้า/หลัง (y) — ซ้าย/ขวา (x)</div>
+                    <div class="stick-pad disabled" id="stick-right"><div class="stick-knob"></div></div>
+                    <div class="stick-values" id="stick-right-values">x=0.0 y=0.0</div>
+                </div>
+            </div>
+
+            <p class="hint">
+                คีย์ลัด: <code>W</code> หน้า &nbsp;<code>S</code> ถอยหลัง &nbsp;<code>A</code> ซ้าย &nbsp;<code>D</code> ขวา &nbsp;
+                <code>Q</code> หมุนซ้าย &nbsp;<code>E</code> หมุนขวา &nbsp;<code>O</code> ขึ้น &nbsp;<code>L</code> ลง<br>
+                joystick หรือคีย์ลัดใช้ได้เฉพาะตอนสถานะเป็น drc_connected เท่านั้น — ปล่อยปุ่ม/นิ้ว/เมาส์แล้วกลับ 0 ทันที (ลอยนิ่ง)<br>
+                Sensitivity คือ % ของความเร็วสูงสุดตามสเปค DJI (17 m/s แนวนอน, 4 m/s แนวตั้ง, 90 deg/s หมุนตัว)
+            </p>
+        </div>
+    </div>
+
+    <script>
+        const FLV_URL = "{{ flv_url }}";
+        const WS_URL = "ws://{{ server_ip }}:{{ drc_ws_port }}/";
+        const XY_LIMIT = 17.0, H_LIMIT = 4.0, W_LIMIT = 90.0;
+
+        // วิดีโอดิบ (ไม่ผ่าน AI) ตั้ง buffer ให้ต่ำสุดเพื่อ latency น้อยที่สุดตอนบังคับบินจริง
+        let flvPlayer = null;
+        let flvReconnectTimer = null;
+
+        function destroyFlvPlayer() {
+            if (!flvPlayer) return;
+            try {
+                flvPlayer.pause();
+                flvPlayer.unload();
+                flvPlayer.detachMediaElement();
+                flvPlayer.destroy();
+            } catch (e) {}
+            flvPlayer = null;
+        }
+
+        function scheduleFlvReconnect() {
+            if (flvReconnectTimer) return;
+            flvReconnectTimer = setTimeout(() => {
+                flvReconnectTimer = null;
+                startFlvPlayer(true);
+            }, 3000);
+        }
+
+        function startFlvPlayer(forceReconnect) {
+            if (!flvjs.isSupported() || !FLV_URL) return;
+            if (flvPlayer && !forceReconnect) return;
+            destroyFlvPlayer();
+
+            flvPlayer = flvjs.createPlayer({
+                type: 'flv',
+                url: FLV_URL,
+                isLive: true,
+                enableStashBuffer: false,
+                stashInitialSize: 64,
+            }, {
+                enableWorker: false,
+                lazyLoad: false,
+                liveBufferLatencyChasing: true,
+                liveBufferLatencyMaxLatency: 0.6,
+                liveBufferLatencyMinRemain: 0.05,
+            });
+            flvPlayer.attachMediaElement(document.getElementById('videoElement'));
+            flvPlayer.load();
+            flvPlayer.play().catch(() => {});
+            flvPlayer.on(flvjs.Events.ERROR, () => scheduleFlvReconnect());
+        }
+
+        startFlvPlayer();
+
+        // watchdog เดียวครอบคลุมทั้งสองเคส: (1) ต่อไม่ติดตั้งแต่แรก (currentTime ไม่เคยขยับ)
+        // และ (2) ต่อติดแล้วแต่ค้างกลางทาง (currentTime หยุดขยับ) — เช็คจาก currentTime ตรงๆ
+        // แทนที่จะเดาจาก buffered ranges เพราะตรงไปตรงมากว่าและครอบคลุมทั้งสองเคสในเช็คเดียว
+        const STALL_THRESHOLD_MS = 3000;
+        const RECONNECT_COOLDOWN_MS = 4000;
+        let lastVideoTime = -1;
+        let lastVideoProgressAt = performance.now();
+        let lastReconnectAt = 0;
+
+        function checkVideoHealth() {
+            const video = document.getElementById('videoElement');
+            if (!video) return;
+            const now = performance.now();
+            if (video.currentTime !== lastVideoTime) {
+                lastVideoTime = video.currentTime;
+                lastVideoProgressAt = now;
+                return;
+            }
+            const stalledFor = now - lastVideoProgressAt;
+            if (stalledFor > STALL_THRESHOLD_MS && now - lastReconnectAt > RECONNECT_COOLDOWN_MS) {
+                lastReconnectAt = now;
+                startFlvPlayer(true);
+            }
+        }
+        setInterval(checkVideoHealth, 1000);
+
+        let ws = null;
+        let wsReconnectTimer = null;
+        let controlState = 'idle';
+
+        function setStatusEl(id, text, level) {
+            const el = document.getElementById(id);
+            el.textContent = text;
+            el.className = 'value ' + level;
+        }
+
+        function updateButtons() {
+            const safetyOk = document.getElementById('safety-check').checked;
+            const idle = controlState === 'idle';
+            document.getElementById('btn-request').disabled = !(idle && safetyOk && ws && ws.readyState === WebSocket.OPEN);
+            document.getElementById('btn-release').disabled = !(!idle && ws && ws.readyState === WebSocket.OPEN);
+            setSticksEnabled(controlState === 'drc_connected');
+        }
+
+        document.getElementById('safety-check').addEventListener('change', updateButtons);
+
+        const DRC_STATE_TEXT = { 0: '0 (not connected)', 1: '1 (connecting)', 2: '2 (connected)' };
+
+        function handleStatus(data) {
+            controlState = data.control_state;
+            setStatusEl('st-control', data.control_state,
+                data.control_state === 'drc_connected' ? 'ok' :
+                data.control_state === 'idle' ? 'wait' : 'warn');
+            setStatusEl('st-drc', DRC_STATE_TEXT[data.drc_state] ?? String(data.drc_state),
+                data.drc_state === 2 ? 'ok' : data.drc_state === 1 ? 'warn' : 'wait');
+            setStatusEl('st-gateway', data.gateway_sn || '—', data.gateway_sn ? 'ok' : 'wait');
+            document.getElementById('message-box').textContent = data.message || '';
+            updateButtons();
+        }
+
+        function handleObstacle(data) {
+            // up/down_distance เป็นฟิลด์ชัดเจนจาก DJI doc — เชื่อถือได้
+            setObstacle('obs-up', data.up_distance, data.up_enable);
+            setObstacle('obs-down', data.down_distance, data.down_enable);
+            // front/left/right/back ไม่มีฟิลด์ระยะแยกชัดเจนใน doc (มีแค่ around_distance[] ที่ไม่รู้ index
+            // แน่นอนว่าตรงกับทิศไหน) — โชว์แค่สถานะ enable/work ไปก่อน ไม่เดาระยะเพื่อกันโชว์ผิดทิศ
+            setObstacleState('obs-front', data.front_enable, data.front_work);
+            setObstacleState('obs-left', data.left_enable, data.left_work);
+            setObstacleState('obs-right', data.right_enable, data.right_work);
+            setObstacleState('obs-back', data.back_enable, data.back_work);
+        }
+
+        function setObstacleState(id, enabled, working) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            if (!enabled) { el.textContent = '—'; el.className = 'dist'; return; }
+            el.textContent = working ? 'ทำงาน' : 'ปิด';
+            el.className = 'dist ' + (working ? 'ok' : '');
+        }
+
+        function setObstacle(id, mm, enabled) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            if (!enabled || mm == null) { el.textContent = '—'; el.className = 'dist'; return; }
+            const m = (mm / 1000).toFixed(1);
+            el.textContent = m + ' m';
+            el.className = 'dist ' + (mm < 1500 ? 'close' : 'ok');
+        }
+
+        function connectWs() {
+            ws = new WebSocket(WS_URL);
+            ws.onopen = () => {
+                setStatusEl('st-ws', 'เชื่อมต่อแล้ว', 'ok');
+                updateButtons();
+            };
+            ws.onclose = () => {
+                setStatusEl('st-ws', 'หลุดการเชื่อมต่อ — reconnect ใน 2 วิ', 'bad');
+                controlState = 'idle';
+                updateButtons();
+                if (!wsReconnectTimer) {
+                    wsReconnectTimer = setTimeout(() => { wsReconnectTimer = null; connectWs(); }, 2000);
+                }
+            };
+            ws.onerror = () => { ws.close(); };
+            ws.onmessage = (evt) => {
+                let data;
+                try { data = JSON.parse(evt.data); } catch { return; }
+                if (data.type === 'status') handleStatus(data);
+                else if (data.type === 'obstacle') handleObstacle(data);
+                else if (data.type === 'ack' && data.result) {
+                    document.getElementById('message-box').textContent = `⚠️ ${data.method} error (result=${data.result})`;
+                }
+            };
+        }
+
+        function wsSend(obj) {
+            if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj));
+        }
+
+        function requestControl() {
+            if (!document.getElementById('safety-check').checked) return;
+            wsSend({ type: 'request_control' });
+        }
+
+        function releaseControl() {
+            wsSend({ type: 'release_control' });
+        }
+
+        function emergencyStop() {
+            wsSend({ type: 'emergency_stop' });
+        }
+
+        // ---------------- joystick ----------------
+        document.getElementById('sensitivity').addEventListener('input', (e) => {
+            document.getElementById('sensitivity-value').textContent = e.target.value + '%';
+        });
+
+        function sensitivity() {
+            return Number(document.getElementById('sensitivity').value) / 100;
+        }
+
+        function setSticksEnabled(enabled) {
+            document.getElementById('stick-left').classList.toggle('disabled', !enabled);
+            document.getElementById('stick-right').classList.toggle('disabled', !enabled);
+        }
+
+        let joystickState = { x: 0, y: 0, h: 0, w: 0 };
+        let lastSendAt = 0;
+        const SEND_MIN_INTERVAL_MS = 50; // cap ~20Hz จากฝั่ง browser (service throttle เองอีกชั้นอยู่แล้ว)
+
+        function sendJoystick(force) {
+            const now = performance.now();
+            if (!force && now - lastSendAt < SEND_MIN_INTERVAL_MS) return;
+            lastSendAt = now;
+            wsSend({ type: 'joystick', ...joystickState });
+        }
+
+        function setupStick(padId, valuesId, onMove) {
+            const pad = document.getElementById(padId);
+            const knob = pad.querySelector('.stick-knob');
+            const valuesEl = document.getElementById(valuesId);
+            const radius = pad.clientWidth / 2;
+            let dragging = false;
+            let activePointerId = null;
+
+            function reset() {
+                knob.style.transform = 'translate(-50%, -50%)';
+                onMove(0, 0, valuesEl);
+                sendJoystick(true);
+            }
+
+            function handleMove(clientX, clientY) {
+                if (controlState !== 'drc_connected') return;
+                const rect = pad.getBoundingClientRect();
+                let dx = clientX - (rect.left + radius);
+                let dy = clientY - (rect.top + radius);
+                const dist = Math.min(Math.hypot(dx, dy), radius);
+                const angle = Math.atan2(dy, dx);
+                dx = Math.cos(angle) * dist;
+                dy = Math.sin(angle) * dist;
+                // ต้องบวก -50% (การจัดกึ่งกลางของ knob เอง) เข้ากับ offset พิกเซล ไม่งั้น knob จะเลื่อนหลุดจากจุดศูนย์กลางจริง
+                knob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+                const nx = dx / radius;   // -1..1
+                const ny = -(dy / radius); // -1..1, กลับด้านให้ขึ้น = บวก
+                onMove(nx, ny, valuesEl);
+                sendJoystick(false);
+            }
+
+            pad.addEventListener('pointerdown', (e) => {
+                if (controlState !== 'drc_connected') return;
+                dragging = true;
+                activePointerId = e.pointerId;
+                pad.setPointerCapture(e.pointerId);
+                handleMove(e.clientX, e.clientY);
+            });
+            pad.addEventListener('pointermove', (e) => {
+                if (!dragging || e.pointerId !== activePointerId) return;
+                handleMove(e.clientX, e.clientY);
+            });
+            const endDrag = (e) => {
+                if (!dragging || (e.pointerId != null && e.pointerId !== activePointerId)) return;
+                dragging = false;
+                activePointerId = null;
+                reset();
+            };
+            pad.addEventListener('pointerup', endDrag);
+            pad.addEventListener('pointercancel', endDrag);
+            pad.addEventListener('pointerleave', (e) => { if (dragging && e.pointerId === activePointerId) endDrag(e); });
+        }
+
+        function applyLeftStick(nx, ny, valuesEl) {
+            const s = sensitivity();
+            joystickState.w = nx * W_LIMIT * s;
+            joystickState.h = ny * H_LIMIT * s;
+            valuesEl.textContent = `h=${joystickState.h.toFixed(1)} w=${joystickState.w.toFixed(1)}`;
+        }
+
+        function applyRightStick(nx, ny, valuesEl) {
+            const s = sensitivity();
+            joystickState.x = nx * XY_LIMIT * s;
+            joystickState.y = ny * XY_LIMIT * s;
+            valuesEl.textContent = `x=${joystickState.x.toFixed(1)} y=${joystickState.y.toFixed(1)}`;
+        }
+
+        setupStick('stick-left', 'stick-left-values', applyLeftStick);
+        setupStick('stick-right', 'stick-right-values', applyRightStick);
+
+        // ---------------- keyboard control ----------------
+        // w=หน้า s=หลัง a=ซ้าย d=ขวา  q=หมุนซ้าย e=หมุนขวา  o=ขึ้น l=ลง
+        const KEY_MAP = {
+            w: 'fwd', s: 'back', a: 'left', d: 'right',
+            q: 'yawL', e: 'yawR', o: 'up', l: 'down',
+        };
+        const keysHeld = new Set();
+
+        function setKnobPixel(padId, nx, ny) {
+            const pad = document.getElementById(padId);
+            const knob = pad.querySelector('.stick-knob');
+            const radius = pad.clientWidth / 2;
+            knob.style.transform = `translate(calc(-50% + ${nx * radius}px), calc(-50% + ${-ny * radius}px))`;
+        }
+
+        function updateFromKeyboard() {
+            if (controlState !== 'drc_connected') return;
+            const leftNx = (keysHeld.has('yawR') ? 1 : 0) - (keysHeld.has('yawL') ? 1 : 0);
+            const leftNy = (keysHeld.has('up') ? 1 : 0) - (keysHeld.has('down') ? 1 : 0);
+            const rightNx = (keysHeld.has('left') ? 1 : 0) - (keysHeld.has('right') ? 1 : 0);
+            const rightNy = (keysHeld.has('fwd') ? 1 : 0) - (keysHeld.has('back') ? 1 : 0);
+
+            applyLeftStick(leftNx, leftNy, document.getElementById('stick-left-values'));
+            applyRightStick(rightNx, rightNy, document.getElementById('stick-right-values'));
+            setKnobPixel('stick-left', leftNx, leftNy);
+            setKnobPixel('stick-right', rightNx, rightNy);
+            sendJoystick(true);
+        }
+
+        function isTypingTarget(el) {
+            if (!el) return false;
+            if (el.tagName === 'TEXTAREA') return true;
+            if (el.tagName === 'INPUT') {
+                // checkbox/range/button ไม่ใช่ช่องพิมพ์ตัวอักษร — ไม่ควรบล็อกคีย์ลัดตอน focus ค้างอยู่ที่นี่
+                const t = (el.type || 'text').toLowerCase();
+                return !['checkbox', 'radio', 'range', 'button', 'submit'].includes(t);
+            }
+            return false;
+        }
+
+        window.addEventListener('keydown', (e) => {
+            if (isTypingTarget(document.activeElement)) return;
+            const action = KEY_MAP[e.key.toLowerCase()];
+            if (!action || controlState !== 'drc_connected') return;
+            e.preventDefault();
+            if (!keysHeld.has(action)) {
+                keysHeld.add(action);
+                updateFromKeyboard();
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            const action = KEY_MAP[e.key.toLowerCase()];
+            if (!action) return;
+            keysHeld.delete(action);
+            updateFromKeyboard();
+        });
+
+        // ถ้าสลับแท็บ/หน้าต่างไปโดยไม่ได้ปล่อยปุ่ม (keyup ไม่ยิง) ให้เคลียร์ปุ่มค้างทั้งหมดทันที
+        function clearKeysIfHeld() {
+            if (keysHeld.size > 0) {
+                keysHeld.clear();
+                updateFromKeyboard();
+            }
+        }
+        window.addEventListener('blur', clearKeysIfHeld);
+        document.addEventListener('visibilitychange', () => { if (document.hidden) clearKeysIfHeld(); });
+
+        // ส่ง joystick ปัจจุบันซ้ำเรื่อยๆ ระหว่างที่ยังลากอยู่ (เผื่อ pointermove ไม่ยิงถี่พอ) และตอน idle ก็ยังส่ง 0 เป็นระยะ
+        setInterval(() => sendJoystick(false), SEND_MIN_INTERVAL_MS);
+
+        connectWs();
+    </script>
+</body>
+</html>

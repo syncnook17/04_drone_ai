@@ -3,6 +3,7 @@ import os
 import sys
 import threading
 import time
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import cv2
 from dotenv import load_dotenv
@@ -36,6 +37,12 @@ MIN_BOX_PX = int(os.getenv("AI_MIN_BOX_PX", "10"))  # อนุญาตกล�
 RETRY_SECONDS = 2
 DETECTIONS_JSON = os.path.join(ROOT_DIR, "run", "latest_detections.json")
 LOG_DB_EVERY_N = 90
+MJPEG_PORT = int(os.getenv("AI_MJPEG_PORT", "8009"))
+MJPEG_QUALITY = int(os.getenv("AI_MJPEG_QUALITY", "65"))
+MJPEG_MAX_WIDTH = int(os.getenv("AI_MJPEG_MAX_WIDTH", "960"))
+MJPEG_MAX_FPS = float(os.getenv("AI_MJPEG_MAX_FPS", "15"))
+MJPEG_MIN_INTERVAL = 1.0 / MJPEG_MAX_FPS if MJPEG_MAX_FPS > 0 else 0.0
+BOX_COLOR = (68, 68, 239)  # BGR, สีเดียวกับกรอบแดงที่ dashboard เคยวาด
 
 USE_HALF = False
 try:
@@ -146,6 +153,100 @@ def write_latest_detections(frame, boxes, seq: int, infer_ms: float) -> None:
     os.replace(tmp_path, DETECTIONS_JSON)
 
 
+def draw_boxes_on_frame(frame, boxes) -> None:
+    """วาดกรอบ detection ลงในเฟรมจริงก่อนส่ง MJPEG — เพื่อให้ภาพกับกรอบตรงกันเสมอ"""
+    for box in boxes:
+        x, y, w, h = int(box["x"]), int(box["y"]), int(box["w"]), int(box["h"])
+        label = f'{box["label"]} {box["confidence"]}%'
+        cv2.rectangle(frame, (x, y), (x + w, y + h), BOX_COLOR, 2)
+        (text_w, text_h), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
+        label_y = max(0, y - text_h - 8)
+        cv2.rectangle(frame, (x, label_y), (x + text_w + 6, y), BOX_COLOR, -1)
+        cv2.putText(
+            frame, label, (x + 3, max(text_h + 2, y - 5)),
+            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA,
+        )
+
+
+class MjpegStream:
+    """เก็บเฟรมล่าสุด (JPEG bytes) ให้ handler หลาย client อ่านพร้อมกันได้
+    ลดขนาด + จำกัด fps ก่อนเข้ารหัส เพื่อไม่ให้กิน bandwidth มากเกินไปตอนดูข้าม internet"""
+
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.jpeg_bytes: bytes | None = None
+        self.last_publish_at = 0.0
+
+    def publish(self, frame) -> None:
+        now = time.time()
+        if now - self.last_publish_at < MJPEG_MIN_INTERVAL:
+            return
+        self.last_publish_at = now
+
+        height, width = frame.shape[:2]
+        if width > MJPEG_MAX_WIDTH:
+            scale = MJPEG_MAX_WIDTH / width
+            frame = cv2.resize(frame, (MJPEG_MAX_WIDTH, int(height * scale)))
+
+        ok, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, MJPEG_QUALITY])
+        if not ok:
+            return
+        with self.lock:
+            self.jpeg_bytes = buf.tobytes()
+
+    def latest(self) -> bytes | None:
+        with self.lock:
+            return self.jpeg_bytes
+
+
+mjpeg_stream = MjpegStream()
+
+
+class MjpegHandler(BaseHTTPRequestHandler):
+    def log_message(self, fmt, *args):
+        pass
+
+    def do_GET(self):
+        if self.path.split("?")[0].rstrip("/") != "/mjpeg":
+            self.send_response(404)
+            self.end_headers()
+            return
+
+        self.send_response(200)
+        self.send_header("Age", "0")
+        self.send_header("Cache-Control", "no-cache, private")
+        self.send_header("Pragma", "no-cache")
+        self.send_header("Content-Type", "multipart/x-mixed-replace; boundary=FRAME")
+        self.end_headers()
+
+        last_sent = None
+        try:
+            while True:
+                jpeg_bytes = mjpeg_stream.latest()
+                if jpeg_bytes is None or jpeg_bytes is last_sent:
+                    time.sleep(0.02)
+                    continue
+                last_sent = jpeg_bytes
+                self.wfile.write(b"--FRAME\r\n")
+                self.wfile.write(b"Content-Type: image/jpeg\r\n")
+                self.wfile.write(f"Content-Length: {len(jpeg_bytes)}\r\n\r\n".encode())
+                self.wfile.write(jpeg_bytes)
+                self.wfile.write(b"\r\n")
+        except (BrokenPipeError, ConnectionResetError):
+            pass
+
+
+class MjpegServer(ThreadingHTTPServer):
+    daemon_threads = True
+    allow_reuse_address = True
+
+
+def start_mjpeg_server() -> None:
+    server = MjpegServer(("0.0.0.0", MJPEG_PORT), MjpegHandler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    print(f"🎥 MJPEG (กรอบฝังในภาพ) → 0.0.0.0:{MJPEG_PORT}/mjpeg")
+
+
 def maybe_log_to_db(boxes) -> None:
     latest = TelemetryLog.objects.first()
     current_lat = latest.latitude if latest else 0.0
@@ -225,6 +326,8 @@ def main():
         f"max_w={INFERENCE_MAX_WIDTH}, conf={MIN_CONFIDENCE}%, half={USE_HALF}"
     )
 
+    start_mjpeg_server()
+
     grabber = FrameGrabber()
     grabber.start()
 
@@ -275,6 +378,9 @@ def main():
         prev_boxes = boxes
         seq += 1
         write_latest_detections(frame, boxes, seq, infer_ms)
+
+        draw_boxes_on_frame(frame, boxes)
+        mjpeg_stream.publish(frame)
 
         if seq % LOG_DB_EVERY_N == 0 and boxes:
             maybe_log_to_db(boxes)
