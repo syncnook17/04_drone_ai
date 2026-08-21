@@ -1,5 +1,7 @@
+import json
 import os
 import sys
+import threading
 import time
 
 import cv2
@@ -19,13 +21,29 @@ django.setup()
 
 from app_core.models import DetectionLog, TelemetryLog
 
-SERVER_IP = os.getenv("SERVER_IP", "127.0.0.1")
 RTMP_PORT = os.getenv("RTMP_PORT", "1935")
 RTMP_APP = os.getenv("RTMP_APP", "live")
 RTMP_STREAM_KEY = os.getenv("RTMP_STREAM_KEY", "drone")
 RTMP_URL = f"rtmp://127.0.0.1:{RTMP_PORT}/{RTMP_APP}/{RTMP_STREAM_KEY}"
-TARGET_CLASSES = [0, 2]
-RETRY_SECONDS = 5
+TARGET_CLASSES = [0, 2]  # person, car
+MIN_CONFIDENCE = float(os.getenv("AI_MIN_CONFIDENCE", "28"))
+IMGSZ = int(os.getenv("AI_IMGSZ", "640"))
+INFERENCE_MAX_WIDTH = int(os.getenv("AI_INFERENCE_MAX_WIDTH", "1280"))
+SKIP_READ = int(os.getenv("AI_SKIP_READ", "3"))
+MODEL_NAME = os.getenv("AI_MODEL", "yolov8s.pt")
+MAX_DET = int(os.getenv("AI_MAX_DET", "16"))
+MIN_BOX_PX = int(os.getenv("AI_MIN_BOX_PX", "10"))  # อนุญาตกล่องเล็กสำหรับมุมสูง
+RETRY_SECONDS = 2
+DETECTIONS_JSON = os.path.join(ROOT_DIR, "run", "latest_detections.json")
+LOG_DB_EVERY_N = 90
+
+USE_HALF = False
+try:
+    import torch
+
+    USE_HALF = torch.cuda.is_available()
+except ImportError:
+    pass
 
 
 def open_stream():
@@ -34,56 +52,232 @@ def open_stream():
     return cap
 
 
+def resize_for_inference(frame):
+    height, width = frame.shape[:2]
+    if width <= INFERENCE_MAX_WIDTH:
+        return frame, 1.0
+    scale = INFERENCE_MAX_WIDTH / width
+    resized = cv2.resize(frame, (int(width * scale), int(height * scale)))
+    return resized, scale
+
+
+def match_boxes(prev_boxes: list[dict], curr_boxes: list[dict]) -> list[tuple[dict | None, dict]]:
+    if not prev_boxes:
+        return [(None, box) for box in curr_boxes]
+
+    used = set()
+    pairs = []
+    for curr in curr_boxes:
+        cx = curr["x"] + curr["w"] / 2
+        cy = curr["y"] + curr["h"] / 2
+        best_idx = None
+        best_dist = float("inf")
+        for idx, prev in enumerate(prev_boxes):
+            if idx in used or prev.get("label") != curr.get("label"):
+                continue
+            px = prev["x"] + prev["w"] / 2
+            py = prev["y"] + prev["h"] / 2
+            dist = (cx - px) ** 2 + (cy - py) ** 2
+            if dist < best_dist:
+                best_dist = dist
+                best_idx = idx
+        if best_idx is not None and best_dist < 120 ** 2:
+            used.add(best_idx)
+            pairs.append((prev_boxes[best_idx], curr))
+        else:
+            pairs.append((None, curr))
+    return pairs
+
+
+def boxes_from_results(results, scale: float, prev_boxes: list[dict], dt: float) -> list[dict]:
+    raw_boxes = []
+    for box in results.boxes:
+        class_id = int(box.cls[0])
+        confidence = float(box.conf[0]) * 100
+        if confidence < MIN_CONFIDENCE:
+            continue
+        x1, y1, x2, y2 = box.xyxy[0].tolist()
+        inv = 1.0 / scale
+        bw = (x2 - x1) * inv
+        bh = (y2 - y1) * inv
+        if bw < MIN_BOX_PX or bh < MIN_BOX_PX:
+            continue
+        obj_type = "person" if class_id == 0 else "car"
+        raw_boxes.append(
+            {
+                "x": round(x1 * inv, 1),
+                "y": round(y1 * inv, 1),
+                "w": round(bw, 1),
+                "h": round(bh, 1),
+                "label": obj_type,
+                "confidence": round(confidence, 1),
+            }
+        )
+
+    dt = max(dt, 0.016)
+    boxes = []
+    for prev, curr in match_boxes(prev_boxes, raw_boxes):
+        entry = dict(curr)
+        if prev:
+            entry["vx"] = round((curr["x"] - prev["x"]) / dt, 1)
+            entry["vy"] = round((curr["y"] - prev["y"]) / dt, 1)
+        else:
+            entry["vx"] = 0.0
+            entry["vy"] = 0.0
+        boxes.append(entry)
+    return boxes
+
+
+def write_latest_detections(frame, boxes, seq: int, infer_ms: float) -> None:
+    height, width = frame.shape[:2]
+    now = time.time()
+    payload = {
+        "updated_at": now,
+        "seq": seq,
+        "frame_width": width,
+        "frame_height": height,
+        "infer_ms": round(infer_ms, 1),
+        "boxes": boxes,
+    }
+    os.makedirs(os.path.dirname(DETECTIONS_JSON), exist_ok=True)
+    tmp_path = DETECTIONS_JSON + ".tmp"
+    with open(tmp_path, "w", encoding="utf-8") as handle:
+        json.dump(payload, handle, separators=(",", ":"))
+    os.replace(tmp_path, DETECTIONS_JSON)
+
+
+def maybe_log_to_db(boxes) -> None:
+    latest = TelemetryLog.objects.first()
+    current_lat = latest.latitude if latest else 0.0
+    current_lng = latest.longitude if latest else 0.0
+    for box in boxes:
+        DetectionLog.objects.create(
+            object_type=box["label"],
+            confidence=box["confidence"],
+            latitude=current_lat,
+            longitude=current_lng,
+        )
+
+
+class FrameGrabber(threading.Thread):
+    """อ่าน RTMP ใน thread เดียว — OpenCV VideoCapture ไม่ thread-safe"""
+
+    def __init__(self):
+        super().__init__(daemon=True)
+        self.cap_lock = threading.Lock()
+        self.frame_lock = threading.Lock()
+        self.cap = None
+        self.latest_frame = None
+        self.frame_id = 0
+        self.running = True
+        self.stream_ok = False
+
+    def set_cap(self, cap):
+        with self.cap_lock:
+            if self.cap is not None:
+                self.cap.release()
+            self.cap = cap
+
+    def run(self):
+        while self.running:
+            with self.cap_lock:
+                cap = self.cap
+
+            if cap is None or not cap.isOpened():
+                self.stream_ok = False
+                time.sleep(0.05)
+                continue
+
+            latest = None
+            for _ in range(SKIP_READ + 1):
+                ret, frame = cap.read()
+                if not ret or frame is None:
+                    break
+                latest = frame
+
+            if latest is None:
+                self.stream_ok = False
+                time.sleep(0.02)
+                continue
+
+            self.stream_ok = True
+            with self.frame_lock:
+                self.latest_frame = latest
+                self.frame_id += 1
+
+    def take_latest(self):
+        with self.frame_lock:
+            if self.latest_frame is None:
+                return None, 0
+            return self.latest_frame.copy(), self.frame_id
+
+    def stop(self):
+        self.running = False
+
+
 def main():
     print("🧠 กำลังโหลด YOLOv8...")
-    model = YOLO("yolov8n.pt")
-    print(f"📹 รอ RTMP stream: {RTMP_URL}")
+    model = YOLO(MODEL_NAME)
+    print(f"📹 RTMP (aerial mode): {RTMP_URL}")
+    print(f"📦 Overlay JSON → {DETECTIONS_JSON}")
+    print(
+        f"⚡ model={MODEL_NAME}, imgsz={IMGSZ}, "
+        f"max_w={INFERENCE_MAX_WIDTH}, conf={MIN_CONFIDENCE}%, half={USE_HALF}"
+    )
 
+    grabber = FrameGrabber()
+    grabber.start()
+
+    seq = 0
+    prev_boxes: list[dict] = []
+    last_processed_id = 0
+    last_infer_at = time.time()
     cap = None
-    frame_count = 0
 
     while True:
-        if cap is None or not cap.isOpened():
+        if cap is None or not cap.isOpened() or not grabber.stream_ok:
             if cap is not None:
+                grabber.set_cap(None)
                 cap.release()
-            print(f"⏳ รอสัญญาณ RTMP จาก Pilot 2 ({RTMP_URL})...")
+                cap = None
+            print(f"⏳ รอสัญญาณ RTMP ({RTMP_URL})...")
             cap = open_stream()
             if not cap.isOpened():
                 time.sleep(RETRY_SECONDS)
                 continue
+            grabber.set_cap(cap)
             print("✅ เปิด RTMP stream สำเร็จ")
+            time.sleep(0.3)
 
-        ret, frame = cap.read()
-        if not ret:
-            print("⚠️ อ่านเฟรมไม่ได้ — reconnect")
-            cap.release()
-            cap = None
-            time.sleep(RETRY_SECONDS)
+        frame, frame_id = grabber.take_latest()
+        if frame is None or frame_id == last_processed_id:
+            time.sleep(0.003)
             continue
 
-        frame_count += 1
-        if frame_count % 5 != 0:
-            continue
+        last_processed_id = frame_id
+        infer_frame, scale = resize_for_inference(frame)
+        t0 = time.perf_counter()
+        results = model.predict(
+            infer_frame,
+            classes=TARGET_CLASSES,
+            imgsz=IMGSZ,
+            conf=MIN_CONFIDENCE / 100,
+            verbose=False,
+            max_det=MAX_DET,
+            half=USE_HALF,
+        )[0]
+        infer_ms = (time.perf_counter() - t0) * 1000
+        now = time.time()
+        dt = now - last_infer_at
+        last_infer_at = now
 
-        results = model.predict(frame, verbose=False, classes=TARGET_CLASSES)[0]
-        latest = TelemetryLog.objects.first()
-        current_lat = latest.latitude if latest else 0.0
-        current_lng = latest.longitude if latest else 0.0
+        boxes = boxes_from_results(results, scale, prev_boxes, dt)
+        prev_boxes = boxes
+        seq += 1
+        write_latest_detections(frame, boxes, seq, infer_ms)
 
-        for box in results.boxes:
-            class_id = int(box.cls[0])
-            confidence = float(box.conf[0]) * 100
-            if confidence <= 50:
-                continue
-
-            obj_type = "person" if class_id == 0 else "car"
-            DetectionLog.objects.create(
-                object_type=obj_type,
-                confidence=round(confidence, 2),
-                latitude=current_lat,
-                longitude=current_lng,
-            )
-            print(f"🎯 {obj_type} {round(confidence, 1)}% @ {current_lat}, {current_lng}")
+        if seq % LOG_DB_EVERY_N == 0 and boxes:
+            maybe_log_to_db(boxes)
 
 
 if __name__ == "__main__":

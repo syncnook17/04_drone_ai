@@ -45,6 +45,7 @@ urlpatterns = [
     
     # Internal APIs for Frontend
     path('api/drone-location/', views.api_latest_drone_location, name='api_latest_drone_location'),
+    path('api/latest-detections/', views.api_latest_detections, name='api_latest_detections'),
     path('api/heatmap-data/', views.api_heatmap_data, name='api_heatmap_data'),
 
     # Background Services

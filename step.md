@@ -322,10 +322,64 @@ Response มาตรฐาน DJI:
 | **MQTT callback false** | ใช้ `ws://` ใน Thing module | ใช้ `tcp://IP:1883` |
 | **connectCallback ไม่ทำงาน** | ชื่อ callback ผิด | ใช้ `thingConnectCallback` + ประกาศ `window.thingConnectCallback` |
 | **เห็นแค่ status ไม่มี osd** | RC ส่ง update_topo ก่อน listener รัน | restart handshake หลัง listener รันแล้ว |
+| **MQTT callback false หลัง refactor H5** | เปลี่ยน Thing ไปใช้ Login API / พอร์ต 8006 / user pilot / WS | คืน One-Click ตาม §4.3 — `tcp://1883` + `admin` (commit `Edit Telemetry Final`) |
 
 ---
 
-## 12. คำสั่งรวดเร็ว (copy-paste)
+## 12. สิ่งที่ควรระวัง (อย่าแก้โดยไม่จำเป็น)
+
+> บทเรียนจาก commit **`Edit Telemetry Final`** — ระบบทำงานได้จนกว่าจะไปแก้ H5 handshake / MQTT config ผิดชุด
+
+### 12.1 อย่าแตะ `h5_login.html` ถ้ายัง connect ได้
+
+- Flow ที่ใช้ได้คือ **One-Click 6 ขั้น** (§4.2) — **ไม่มี** Login Backend และ **ไม่มี** API Module
+- แก้ Dashboard, แผนที่, AI, telemetry listener ได้โดยไม่ต้องแตะ H5
+- ถ้า MQTT callback เป็น `true` อยู่แล้ว → **อย่า refactor H5** เพื่อ “ให้ตรง DJI Demo เต็มรูปแบบ”
+
+### 12.2 Thing module ใช้ config คนละชุดกับ Login API
+
+| ใช้กับ | พอร์ต | User/Pass | หมายเหตุ |
+|--------|-------|-----------|----------|
+| **H5 Thing (Pilot MQTT)** | **1883** TCP | **admin / admin1234** | hardcode ใน `h5_login.html` |
+| Login API (`/manage/api/v1/login/`) | 8006 (ใน `.env`) | pilot / pilot123 | stub สำหรับ DJI Demo — **H5 ไม่ได้เรียกใช้** |
+| telemetry_listener | 1883 | admin / admin1234 | subscribe topic DJI |
+
+**ห้าม** ให้ H5 ดึง `mqtt_addr` จาก Login API แล้วส่งเข้า Thing module โดยตรง — API คืน `:8006` + `pilot` แต่ RC ต้องใช้ `:1883` + `admin`
+
+### 12.3 Protocol และพอร์ต
+
+- Thing module บน RC Plus 2 ใช้ **`tcp://` เท่านั้น** — ไม่ใช้ `ws://8007/mqtt` แม้ nginx proxy WS จะทำงานจาก browser ได้
+- `MQTT_PUBLIC_PORT=8006` ใน `.env` เป็นทางเลือก/สถานะ API — **ไม่ใช่** พอร์ตที่ H5 One-Click ใช้จริง (ใช้ **1883**)
+- อย่าเพิ่ม retry WebSocket ใน Thing module — จะได้ callback `false` ทุกครั้ง
+
+### 12.4 อย่าเพิ่มขั้นตอน JSBridge ที่ไม่จำเป็น
+
+สิ่งที่ทำให้ MQTT พังเมื่อเพิ่มเข้าไป:
+
+- `POST /manage/api/v1/login/` ก่อน Thing
+- `platformLoadComponent("api", ...)` ก่อน Thing
+- `thingConnect()` / `thingGetConnectState()` ซ้ำหลัง `platformLoadComponent("thing")`
+- `platformUnloadComponent("thing")` แล้ว reconnect หลายรอบ
+
+ลำดับที่ปลอดภัย: **License → Workspace → Thing → Liveshare → RTMP → Start Live**
+
+### 12.5 Git / restore
+
+- Commit อ้างอิงที่ระบบทำงานครบ: **`ce675da` — `Edit Telemetry Final`**
+- คืนโค้ด: `git restore --source=ce675da --worktree --staged .` (เฉพาะไฟล์ที่ต้องการ)
+- หลัง restore ต้อง **restart** `telemetry_listener.py` และ refresh H5 บน RC (Ctrl+F5)
+
+### 12.6 Checklist ก่อน merge / แก้ H5
+
+- [ ] MQTT callback บน RC ยังเป็น `true` หลังแก้หรือไม่
+- [ ] Thing ยังใช้ `tcp://SERVER_IP:1883` + `admin/admin1234`
+- [ ] ไม่ได้เพิ่ม Login / API Module ใน flow One-Click
+- [ ] `telemetry_listener.py` ยังรันและเห็น `status_reply` + `osd`
+- [ ] Dashboard ยังแสดง **พิกัดโดรน (MQTT) = เชื่อมต่อ**
+
+---
+
+## 13. คำสั่งรวดเร็ว (copy-paste)
 
 ```bash
 # เปิดทุกอย่าง
@@ -342,4 +396,11 @@ docker exec dji_mqtt_emqx emqx ctl clients list
 # ดู log
 tail -f /home/ddm/02_drone_ai/logs/telemetry_listener.log
 tail -f /home/ddm/02_drone_ai/logs/django.log
+```
+
+```bash
+# คืนโค้ดไป commit ที่ทำงานได้ (Edit Telemetry Final)
+cd /home/ddm/02_drone_ai
+git restore --source=ce675da --worktree --staged \
+  .env ai_pipeline/ drone_backend/ emqx/ nginx/ scripts/ step.md
 ```

@@ -18,6 +18,42 @@
             overflow: hidden;
         }
         #map { width: 50%; height: 100%; border-right: 2px solid #222; }
+        #map-wrap { position: relative; width: 50%; height: 100%; border-right: 2px solid #222; }
+        #map-wrap #map { width: 100%; height: 100%; border-right: none; }
+        #map-info {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            z-index: 1000;
+            background: rgba(18, 18, 18, 0.92);
+            border: 1px solid #444;
+            border-radius: 8px;
+            padding: 12px 14px;
+            min-width: 220px;
+            font-size: 13px;
+            line-height: 1.7;
+            pointer-events: none;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+        }
+        #map-info h3 {
+            margin: 0 0 8px;
+            font-size: 12px;
+            color: #deff9a;
+            font-weight: 600;
+            letter-spacing: 0.03em;
+        }
+        #map-info .row { display: flex; justify-content: space-between; gap: 12px; }
+        #map-info .label { color: #888; }
+        #map-info .value { color: #fff; font-family: monospace; font-size: 12px; }
+        #map-info .value.live { color: #4ade80; }
+        #map-info .value.wait { color: #fbbf24; }
+        #map-info .status-line {
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid #333;
+            font-size: 11px;
+            color: #888;
+        }
         #video-panel {
             width: 50%;
             height: 100%;
@@ -68,19 +104,57 @@
         }
         .btn-backend.secondary { background: #444; color: #fff; }
         .btn-backend.ai { background: #38bdf8; color: #121212; }
-        video {
+        #video-wrap {
+            position: relative;
             width: 100%;
             aspect-ratio: 16/9;
             background: #000;
             border-radius: 8px;
             border: 1px solid #333;
+            overflow: hidden;
+        }
+        #video-wrap video {
+            width: 100%;
+            height: 100%;
+            display: block;
+            border: none;
+            border-radius: 0;
+        }
+        #detectionCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+        #ai-overlay-status {
+            position: absolute;
+            bottom: 8px;
+            left: 8px;
+            background: rgba(0, 0, 0, 0.65);
+            color: #deff9a;
+            font-size: 11px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            pointer-events: none;
         }
         .hint { color: #666; font-size: 12px; margin: 0; line-height: 1.5; }
         code { color: #deff9a; font-size: 11px; word-break: break-all; }
     </style>
 </head>
 <body>
-    <div id="map"></div>
+    <div id="map-wrap">
+        <div id="map"></div>
+        <div id="map-info">
+            <h3>📍 พิกัดโดรน (MQTT)</h3>
+            <div class="row"><span class="label">Latitude</span><span id="info-lat" class="value wait">—</span></div>
+            <div class="row"><span class="label">Longitude</span><span id="info-lng" class="value wait">—</span></div>
+            <div class="row"><span class="label">Altitude</span><span id="info-alt" class="value wait">—</span></div>
+            <div class="row"><span class="label">Serial</span><span id="info-sn" class="value wait">—</span></div>
+            <div id="info-status" class="status-line">รอพิกัดจาก MQTT...</div>
+        </div>
+    </div>
     <div id="video-panel">
         <div class="nav-links">
             <a href="/dashboard/mission/">🗺️ สั่งการบิน</a>
@@ -107,7 +181,11 @@
             </div>
         </div>
 
-        <video id="videoElement" controls autoplay muted></video>
+        <div id="video-wrap">
+            <video id="videoElement" controls autoplay muted playsinline></video>
+            <canvas id="detectionCanvas"></canvas>
+            <div id="ai-overlay-status">AI overlay: รอ...</div>
+        </div>
         <p class="hint">
             RTMP (Pilot 2): <code>{{ rtmp_url }}</code><br>
             FLV (Web): <code>{{ flv_url }}</code><br>
@@ -125,10 +203,47 @@
             attribution: '© OpenStreetMap'
         }).addTo(map);
 
-        const droneMarker = L.marker(DEFAULT_CENTER).addTo(map)
-            .bindPopup("รอพิกัดจากโดรน...");
+        const droneMarker = L.circleMarker(DEFAULT_CENTER, {
+            radius: 10,
+            color: '#4ade80',
+            fillColor: '#22c55e',
+            fillOpacity: 0.85,
+            weight: 2,
+        }).addTo(map).bindPopup('รอพิกัดจากโดรน...');
+
+        function isValidCoords(lat, lng) {
+            if (lat == null || lng == null) return false;
+            return !(Math.abs(Number(lat)) < 0.0001 && Math.abs(Number(lng)) < 0.0001);
+        }
+
+        function formatCoord(value, decimals) {
+            if (value == null || Number.isNaN(Number(value))) return '—';
+            return Number(value).toFixed(decimals);
+        }
+
+        function setMapInfo(lat, lng, alt, sn, status, live) {
+            document.getElementById('info-lat').textContent = formatCoord(lat, 6);
+            document.getElementById('info-lng').textContent = formatCoord(lng, 6);
+            document.getElementById('info-alt').textContent =
+                alt != null && !Number.isNaN(Number(alt)) ? Number(alt).toFixed(1) + ' m' : '—';
+            document.getElementById('info-sn').textContent = sn || '—';
+            document.getElementById('info-status').textContent = status;
+            ['info-lat', 'info-lng', 'info-alt', 'info-sn'].forEach(id => {
+                document.getElementById(id).className = 'value ' + (live ? 'live' : 'wait');
+            });
+        }
 
         let flvPlayer = null;
+        let flvReconnectTimer = null;
+
+        if (typeof flvjs !== 'undefined' && flvjs.LoggingControl) {
+            flvjs.LoggingControl.applyConfig({
+                enableVerbose: false,
+                enableInfo: false,
+                enableWarn: false,
+                enableError: true,
+            });
+        }
 
         function setStatus(id, text, level) {
             const el = document.getElementById(id);
@@ -160,34 +275,272 @@
             fetch('/api/drone-location/')
                 .then(r => r.json())
                 .then(data => {
-                    if (!data.connected || data.lat == null) {
-                        droneMarker.setPopupContent("⏳ " + (data.message || "รอพิกัดจากโดรน"));
+                    const hasCoords = isValidCoords(data.lat, data.lng);
+                    const altText = data.alt != null ? Number(data.alt).toFixed(1) + ' m' : '—';
+
+                    if (!data.connected) {
+                        setMapInfo(null, null, data.alt, data.drone_sn,
+                            data.message || 'ไม่มีสัญญาณ MQTT', false);
+                        droneMarker.setPopupContent('⏳ ' + (data.message || 'รอพิกัดจากโดรน'));
                         return;
                     }
-                    const pos = [data.lat, data.lng];
+
+                    if (!hasCoords) {
+                        setMapInfo(null, null, data.alt, data.drone_sn,
+                            'MQTT เชื่อมต่อแล้ว — รอ GPS lock (lat/lng ยังเป็น 0)', false);
+                        droneMarker.setPopupContent(
+                            `<b>${data.drone_sn || 'Drone'}</b><br>` +
+                            `Lat/Lng: รอ GPS<br>สูง: ${altText}`
+                        );
+                        return;
+                    }
+
+                    const pos = [Number(data.lat), Number(data.lng)];
                     droneMarker.setLatLng(pos);
                     map.panTo(pos);
+                    setMapInfo(data.lat, data.lng, data.alt, data.drone_sn,
+                        data.message || 'อัปเดตล่าสุด', true);
                     droneMarker.setPopupContent(
-                        `<b>${data.drone_sn || 'Drone'}</b><br>สูง: ${Number(data.alt).toFixed(1)} m`
+                        `<b>${data.drone_sn || 'Drone'}</b><br>` +
+                        `Lat: ${formatCoord(data.lat, 6)}<br>` +
+                        `Lng: ${formatCoord(data.lng, 6)}<br>` +
+                        `สูง: ${altText}`
                     );
                 })
-                .catch(() => {});
+                .catch(() => {
+                    setMapInfo(null, null, null, null, 'โหลดพิกัดไม่สำเร็จ', false);
+                });
         }
 
-        function startFlvPlayer() {
-            if (!flvjs.isSupported()) return;
-            if (flvPlayer) {
+        function destroyFlvPlayer() {
+            if (!flvPlayer) return;
+            try {
+                flvPlayer.pause();
+                flvPlayer.unload();
+                flvPlayer.detachMediaElement();
                 flvPlayer.destroy();
-                flvPlayer = null;
-            }
+            } catch (e) {}
+            flvPlayer = null;
+        }
+
+        function scheduleFlvReconnect() {
+            if (flvReconnectTimer) return;
+            flvReconnectTimer = setTimeout(() => {
+                flvReconnectTimer = null;
+                startFlvPlayer(true);
+            }, 5000);
+        }
+
+        function startFlvPlayer(forceReconnect) {
+            if (!flvjs.isSupported()) return;
+            if (flvPlayer && !forceReconnect) return;
+
+            destroyFlvPlayer();
+
             const videoElement = document.getElementById('videoElement');
-            flvPlayer = flvjs.createPlayer({ type: 'flv', url: FLV_URL, isLive: true });
+            flvPlayer = flvjs.createPlayer({
+                type: 'flv',
+                url: FLV_URL,
+                isLive: true,
+                enableStashBuffer: false,
+                stashInitialSize: 64,
+                lazyLoad: false,
+                deferLoadAfterSourceOpen: false,
+            }, {
+                enableWorker: false,
+                lazyLoad: false,
+                lazyLoadMaxDuration: 0,
+                lazyLoadRecoverDuration: 0,
+                liveBufferLatencyChasing: true,
+                liveBufferLatencyMaxLatency: 0.6,
+                liveBufferLatencyMinRemain: 0.05,
+            });
             flvPlayer.attachMediaElement(videoElement);
             flvPlayer.load();
             flvPlayer.play().catch(() => {});
-            flvPlayer.on(flvjs.Events.ERROR, () => {
-                setTimeout(startFlvPlayer, 5000);
+
+            flvPlayer.on(flvjs.Events.ERROR, (errType, errDetail) => {
+                const networkIssue =
+                    errType === flvjs.ErrorTypes.NETWORK_ERROR ||
+                    errDetail === flvjs.ErrorDetails.NETWORK_EXCEPTION ||
+                    errDetail === flvjs.ErrorDetails.NETWORK_STATUS_CODE_INVALID;
+                if (networkIssue) {
+                    scheduleFlvReconnect();
+                }
             });
+        }
+
+        let lastDetectionData = null;
+        let pendingDetectionData = null;
+        let prevOverlaySnap = null;
+        let currOverlaySnap = null;
+        const EXTRAPOLATE_MS = 320;
+        const PREDICT_AHEAD_MS = 120;
+        const PREDICT_VEL_SCALE = 0.85;
+
+        function boxCenter(box) {
+            return { x: box.x + box.w / 2, y: box.y + box.h / 2 };
+        }
+
+        function matchOverlayBoxes(prevBoxes, currBoxes) {
+            if (!prevBoxes || !prevBoxes.length) {
+                return currBoxes.map(box => ({ prev: null, curr: box }));
+            }
+            const used = new Set();
+            return currBoxes.map(curr => {
+                const cc = boxCenter(curr);
+                let best = null;
+                let bestDist = Infinity;
+                prevBoxes.forEach((prev, idx) => {
+                    if (used.has(idx) || prev.label !== curr.label) return;
+                    const pc = boxCenter(prev);
+                    const dist = (cc.x - pc.x) ** 2 + (cc.y - pc.y) ** 2;
+                    if (dist < bestDist) {
+                        bestDist = dist;
+                        best = { prev, idx };
+                    }
+                });
+                if (best && bestDist < 120 * 120) {
+                    used.add(best.idx);
+                    return { prev: best.prev, curr };
+                }
+                return { prev: null, curr };
+            });
+        }
+
+        function applyOverlaySnapshot(data) {
+            if (!data || !data.fresh) {
+                currOverlaySnap = null;
+                pendingDetectionData = data;
+                return;
+            }
+            prevOverlaySnap = currOverlaySnap;
+            currOverlaySnap = {
+                t: performance.now(),
+                frame_width: data.frame_width,
+                frame_height: data.frame_height,
+                boxes: (data.boxes || []).map(b => ({ ...b })),
+                fresh: true,
+                age_seconds: data.age_seconds,
+                seq: data.seq,
+                infer_ms: data.infer_ms,
+            };
+            pendingDetectionData = extrapolateOverlay();
+        }
+
+        function predictBox(box, elapsedMs) {
+            const aheadSec = (elapsedMs + PREDICT_AHEAD_MS) / 1000;
+            const vx = (box.vx || 0) * PREDICT_VEL_SCALE;
+            const vy = (box.vy || 0) * PREDICT_VEL_SCALE;
+            return {
+                label: box.label,
+                confidence: box.confidence,
+                x: box.x + vx * aheadSec,
+                y: box.y + vy * aheadSec,
+                w: box.w,
+                h: box.h,
+            };
+        }
+
+        function extrapolateOverlay() {
+            if (!currOverlaySnap) return null;
+            const elapsed = performance.now() - currOverlaySnap.t;
+            const pairs = matchOverlayBoxes(
+                prevOverlaySnap ? prevOverlaySnap.boxes : [],
+                currOverlaySnap.boxes
+            );
+            const alpha = Math.min(1.6, elapsed / EXTRAPOLATE_MS);
+            return {
+                fresh: true,
+                frame_width: currOverlaySnap.frame_width,
+                frame_height: currOverlaySnap.frame_height,
+                age_seconds: currOverlaySnap.age_seconds,
+                infer_ms: currOverlaySnap.infer_ms,
+                boxes: pairs.map(({ prev, curr }) => {
+                    if (curr.vx != null || curr.vy != null) {
+                        return predictBox(curr, elapsed);
+                    }
+                    if (!prev) return curr;
+                    return {
+                        label: curr.label,
+                        confidence: curr.confidence,
+                        x: curr.x + (curr.x - prev.x) * alpha,
+                        y: curr.y + (curr.y - prev.y) * alpha,
+                        w: curr.w + (curr.w - prev.w) * alpha,
+                        h: curr.h + (curr.h - prev.h) * alpha,
+                    };
+                }),
+            };
+        }
+
+        function drawDetectionOverlay(data) {
+            lastDetectionData = data;
+            const canvas = document.getElementById('detectionCanvas');
+            const video = document.getElementById('videoElement');
+            const statusEl = document.getElementById('ai-overlay-status');
+            if (!canvas || !video) return;
+
+            const rect = video.getBoundingClientRect();
+            canvas.width = Math.round(rect.width);
+            canvas.height = Math.round(rect.height);
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            if (!data.fresh) {
+                statusEl.textContent = 'AI overlay: รอ AI processor...';
+                statusEl.style.color = '#fbbf24';
+                return;
+            }
+            if (data.age_seconds != null && data.age_seconds > 1.0) {
+                statusEl.textContent = `AI overlay: ช้า ${data.age_seconds}s`;
+                statusEl.style.color = '#fbbf24';
+            } else if (!data.frame_width || !data.boxes.length) {
+                statusEl.textContent = 'AI overlay: ไม่พบวัตถุ';
+                statusEl.style.color = '#888';
+                return;
+            }
+
+            const sx = canvas.width / data.frame_width;
+            const sy = canvas.height / data.frame_height;
+
+            data.boxes.forEach(box => {
+                const x = box.x * sx;
+                const y = box.y * sy;
+                const w = box.w * sx;
+                const h = box.h * sy;
+                ctx.strokeStyle = '#ef4444';
+                ctx.lineWidth = 3;
+                ctx.strokeRect(x, y, w, h);
+                const label = `${box.label} ${box.confidence}%`;
+                ctx.font = 'bold 14px Segoe UI, sans-serif';
+                const textW = ctx.measureText(label).width + 10;
+                ctx.fillStyle = 'rgba(239, 68, 68, 0.9)';
+                ctx.fillRect(x, Math.max(0, y - 22), textW, 22);
+                ctx.fillStyle = '#fff';
+                ctx.fillText(label, x + 5, Math.max(14, y - 6));
+            });
+
+            statusEl.textContent = `AI overlay: ${data.boxes.length} วัตถุ` +
+                (data.infer_ms ? ` (${data.infer_ms}ms)` : '');
+            statusEl.style.color = '#4ade80';
+        }
+
+        function refreshDetections() {
+            fetch('/api/latest-detections/')
+                .then(r => r.json())
+                .then(applyOverlaySnapshot)
+                .catch(() => {});
+        }
+
+        function overlayAnimationLoop() {
+            if (currOverlaySnap) {
+                pendingDetectionData = extrapolateOverlay();
+            }
+            if (pendingDetectionData) {
+                lastDetectionData = pendingDetectionData;
+                drawDetectionOverlay(pendingDetectionData);
+            }
+            requestAnimationFrame(overlayAnimationLoop);
         }
 
         function launchService(type) {
@@ -211,9 +564,15 @@
         startFlvPlayer();
         refreshSystemStatus();
         refreshLocation();
+        refreshDetections();
+        requestAnimationFrame(overlayAnimationLoop);
         setInterval(refreshLocation, 1000);
         setInterval(refreshSystemStatus, 3000);
-        setInterval(startFlvPlayer, 15000);
+        setInterval(refreshDetections, 16);
+        window.addEventListener('resize', () => {
+            if (lastDetectionData) drawDetectionOverlay(lastDetectionData);
+        });
+        document.getElementById('videoElement').addEventListener('loadedmetadata', refreshDetections);
     </script>
 </body>
 </html>

@@ -2,6 +2,7 @@ import json
 import os
 import socket
 import sys
+import time
 import uuid
 from datetime import timedelta
 from urllib.error import URLError
@@ -339,6 +340,36 @@ def api_heatmap_data(request):
     return JsonResponse({"points": points})
 
 
+def api_latest_detections(request):
+    """คืนกรอบวัตถุล่าสุดจาก video_processor สำหรับ overlay บน live video"""
+    detections_path = os.path.join(ROOT_DIR, "run", "latest_detections.json")
+    empty = {"fresh": False, "boxes": [], "frame_width": 0, "frame_height": 0, "age_seconds": None}
+
+    if not os.path.exists(detections_path):
+        return JsonResponse(empty)
+
+    try:
+        with open(detections_path, encoding="utf-8") as handle:
+            data = json.load(handle)
+    except (OSError, json.JSONDecodeError):
+        return JsonResponse(empty)
+
+    age = time.time() - float(data.get("updated_at", 0))
+    fresh = age <= 3.0 and is_running("video_processor")
+
+    return JsonResponse(
+        {
+            "fresh": fresh,
+            "boxes": data.get("boxes", []),
+            "frame_width": data.get("frame_width", 0),
+            "frame_height": data.get("frame_height", 0),
+            "age_seconds": round(age, 2),
+            "seq": data.get("seq", 0),
+            "infer_ms": data.get("infer_ms"),
+        }
+    )
+
+
 def _tcp_reachable(host: str, port: int, timeout: float = 2.0) -> bool:
     try:
         with socket.create_connection((host, port), timeout=timeout):
@@ -409,6 +440,9 @@ def start_backend_service(request):
         if action == "stop":
             ok, message = stop_service(service_name)
         else:
+            if is_running(service_name):
+                stop_service(service_name)
+                time.sleep(0.5)
             ok, message = start_service(service_name, python_path, script_path)
 
         return JsonResponse(

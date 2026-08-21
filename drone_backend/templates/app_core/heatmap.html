@@ -5,6 +5,18 @@
     <title>Live Heatmap Dashboard</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // leaflet-heat เรียก getImageData บ่อย — ปิด warning และเร่ง canvas readback
+        (function () {
+            const orig = HTMLCanvasElement.prototype.getContext;
+            HTMLCanvasElement.prototype.getContext = function (type, attrs) {
+                if (type === '2d') {
+                    attrs = Object.assign({}, attrs || {}, { willReadFrequently: true });
+                }
+                return orig.call(this, type, attrs);
+            };
+        })();
+    </script>
     <script src="https://leaflet.github.io/Leaflet.heat/dist/leaflet-heat.js"></script>
     <style>
         body { font-family: sans-serif; margin:0; background: #121212; color:white; }
@@ -33,10 +45,15 @@
             fetch('/api/heatmap-data/')
                 .then(res => res.json())
                 .then(data => {
-                    // เคลียร์ Layer เก่าออกก่อนวาดใหม่ เพื่ออัปเดตแบบสดๆ
-                    if (window.heatLayer) { map.removeLayer(window.heatLayer); }
-                    // วาดแถบความร้อนลงแผนที่ (กำหนดรัศมีวงความร้อนกระจายกว้าง 25 พิกเซล)
-                    window.heatLayer = L.heatLayer(data.points, {radius: 25, blur: 15, maxZoom: 17}).addTo(map);
+                    if (window.heatLayer) {
+                        window.heatLayer.setLatLngs(data.points);
+                        return;
+                    }
+                    window.heatLayer = L.heatLayer(data.points, {
+                        radius: 25,
+                        blur: 15,
+                        maxZoom: 17,
+                    }).addTo(map);
                 });
         }
 
