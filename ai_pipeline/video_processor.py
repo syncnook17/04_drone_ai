@@ -26,6 +26,14 @@ RTMP_PORT = os.getenv("RTMP_PORT", "1935")
 RTMP_APP = os.getenv("RTMP_APP", "live")
 RTMP_STREAM_KEY = os.getenv("RTMP_STREAM_KEY", "drone")
 RTMP_URL = f"rtmp://127.0.0.1:{RTMP_PORT}/{RTMP_APP}/{RTMP_STREAM_KEY}"
+# ทางเลือก: อ่านผ่าน FLV ของ SRS (AI_INGEST=flv) — ดีฟอลต์ใช้ RTMP ตรงเหมือนเดิม
+SRS_HTTP_PORT = os.getenv("SRS_HTTP_PORT", "8085")
+FLV_URL = f"http://127.0.0.1:{SRS_HTTP_PORT}/{RTMP_APP}/{RTMP_STREAM_KEY}.flv"
+INGEST_URL = FLV_URL if os.getenv("AI_INGEST", "rtmp") == "flv" else RTMP_URL
+# low-latency flags — ไม่ใส่ key 'timeout' (สำหรับ rtmp มันหมายถึง listen mode)
+os.environ.setdefault(
+    "OPENCV_FFMPEG_CAPTURE_OPTIONS", "fflags;nobuffer|flags;low_delay"
+)
 TARGET_CLASSES = [0, 2]  # person, car
 MIN_CONFIDENCE = float(os.getenv("AI_MIN_CONFIDENCE", "28"))
 IMGSZ = int(os.getenv("AI_IMGSZ", "640"))
@@ -54,7 +62,7 @@ except ImportError:
 
 
 def open_stream():
-    cap = cv2.VideoCapture(RTMP_URL)
+    cap = cv2.VideoCapture(INGEST_URL, cv2.CAP_FFMPEG)
     cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
     return cap
 
@@ -316,10 +324,53 @@ class FrameGrabber(threading.Thread):
         self.running = False
 
 
+class MjpegPublisher(threading.Thread):
+    """ส่งภาพออก MJPEG แยก thread — FPS ไม่ผูกกับความเร็ว inference
+    ดึงเฟรมดิบล่าสุดจาก grabber แล้ววาดกรอบ 'ล่าสุดที่ AI เจอ' ทับ (extrapolate ด้วย vx/vy)
+    ทำให้ภาพลื่นแม้ inference จะช้า/สะดุด"""
+
+    def __init__(self, grabber: "FrameGrabber"):
+        super().__init__(daemon=True)
+        self.grabber = grabber
+        self.running = True
+        self._boxes: list[dict] = []
+        self._boxes_at = 0.0
+        self._lock = threading.Lock()
+
+    def update_boxes(self, boxes: list[dict]) -> None:
+        with self._lock:
+            self._boxes = boxes
+            self._boxes_at = time.time()
+
+    def _current_boxes(self):
+        with self._lock:
+            dt = time.time() - self._boxes_at
+            if dt > 1.5:  # เก่าเกินไป — ไม่วาด (กันกรอบค้างตอน AI หลุด)
+                return []
+            out = []
+            for b in self._boxes:
+                nb = dict(b)
+                nb["x"] = b["x"] + b.get("vx", 0.0) * dt
+                nb["y"] = b["y"] + b.get("vy", 0.0) * dt
+                out.append(nb)
+            return out
+
+    def run(self):
+        last_id = -1
+        while self.running:
+            frame, frame_id = self.grabber.take_latest()
+            if frame is None or frame_id == last_id:
+                time.sleep(MJPEG_MIN_INTERVAL / 2 if MJPEG_MIN_INTERVAL else 0.01)
+                continue
+            last_id = frame_id
+            draw_boxes_on_frame(frame, self._current_boxes())
+            mjpeg_stream.publish(frame)
+
+
 def main():
     print("🧠 กำลังโหลด YOLOv8...")
     model = YOLO(MODEL_NAME)
-    print(f"📹 RTMP (aerial mode): {RTMP_URL}")
+    print(f"📹 Ingest: {INGEST_URL}")
     print(f"📦 Overlay JSON → {DETECTIONS_JSON}")
     print(
         f"⚡ model={MODEL_NAME}, imgsz={IMGSZ}, "
@@ -330,6 +381,10 @@ def main():
 
     grabber = FrameGrabber()
     grabber.start()
+
+    publisher = MjpegPublisher(grabber)
+    publisher.start()
+    print(f"🖼️  MJPEG publisher แยก thread (สูงสุด {MJPEG_MAX_FPS} fps, ไม่ผูกกับ inference)")
 
     seq = 0
     prev_boxes: list[dict] = []
@@ -343,7 +398,7 @@ def main():
                 grabber.set_cap(None)
                 cap.release()
                 cap = None
-            print(f"⏳ รอสัญญาณ RTMP ({RTMP_URL})...")
+            print(f"⏳ รอสัญญาณวิดีโอ ({INGEST_URL})...")
             cap = open_stream()
             if not cap.isOpened():
                 time.sleep(RETRY_SECONDS)
@@ -358,36 +413,47 @@ def main():
             continue
 
         last_processed_id = frame_id
-        infer_frame, scale = resize_for_inference(frame)
-        t0 = time.perf_counter()
-        results = model.predict(
-            infer_frame,
-            classes=TARGET_CLASSES,
-            imgsz=IMGSZ,
-            conf=MIN_CONFIDENCE / 100,
-            verbose=False,
-            max_det=MAX_DET,
-            half=USE_HALF,
-        )[0]
-        infer_ms = (time.perf_counter() - t0) * 1000
-        now = time.time()
-        dt = now - last_infer_at
-        last_infer_at = now
+        try:
+            infer_frame, scale = resize_for_inference(frame)
+            t0 = time.perf_counter()
+            results = model.predict(
+                infer_frame,
+                classes=TARGET_CLASSES,
+                imgsz=IMGSZ,
+                conf=MIN_CONFIDENCE / 100,
+                verbose=False,
+                max_det=MAX_DET,
+                half=USE_HALF,
+            )[0]
+            infer_ms = (time.perf_counter() - t0) * 1000
+            now = time.time()
+            dt = now - last_infer_at
+            last_infer_at = now
 
-        boxes = boxes_from_results(results, scale, prev_boxes, dt)
-        prev_boxes = boxes
-        seq += 1
-        write_latest_detections(frame, boxes, seq, infer_ms)
+            boxes = boxes_from_results(results, scale, prev_boxes, dt)
+            prev_boxes = boxes
+            seq += 1
+            write_latest_detections(frame, boxes, seq, infer_ms)
 
-        draw_boxes_on_frame(frame, boxes)
-        mjpeg_stream.publish(frame)
+            # ส่งกรอบให้ publisher thread ไปวาดทับเฟรมดิบล่าสุด (ไม่วาด/ส่งเองแล้ว)
+            publisher.update_boxes(boxes)
 
-        if seq % LOG_DB_EVERY_N == 0 and boxes:
-            maybe_log_to_db(boxes)
+            if seq % LOG_DB_EVERY_N == 0 and boxes:
+                maybe_log_to_db(boxes)
+        except Exception as exc:  # noqa: BLE001 - เฟรมเสีย/inference พลาด ไม่ควรทำให้ service ตาย
+            print(f"⚠️ ประมวลผลเฟรมล้มเหลว (ข้าม): {exc}")
+            time.sleep(0.05)
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except KeyboardInterrupt:
-        print("\n🛑 ปิด AI Video Processor")
+    # supervisor: ถ้า main() พังจาก exception (เช่น decode error สะสม) ให้เริ่มใหม่เอง
+    # (segfault ระดับ ffmpeg native ยังต้องพึ่ง service_manager/systemd ข้างนอก)
+    while True:
+        try:
+            main()
+        except KeyboardInterrupt:
+            print("\n🛑 ปิด AI Video Processor")
+            break
+        except Exception as exc:  # noqa: BLE001
+            print(f"💥 main() ล้มเหลว: {exc!r} — เริ่มใหม่ใน 3 วิ")
+            time.sleep(3)

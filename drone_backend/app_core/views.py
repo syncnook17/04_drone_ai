@@ -40,8 +40,15 @@ def _flv_url() -> str:
 
 
 def _mjpeg_url() -> str:
-    """วิดีโอที่ video_processor.py วาดกรอบ detection ฝังในเฟรมแล้ว (serve ตรงจากพอร์ตของมันเอง)"""
-    return f"http://{settings.SERVER_IP}:{settings.AI_MJPEG_PORT}/mjpeg"
+    """วิดีโอ MJPEG จาก video_processor.py — route ผ่าน nginx gateway (:8007/ai-video/)
+    แทนพอร์ต 8009 ตรงๆ เพราะพอร์ตนั้นอาจไม่ได้ถูก forward ออก internet"""
+    return f"http://{settings.SERVER_IP}:{settings.DJANGO_PORT}/ai-video/mjpeg"
+
+
+def _drc_ws_url() -> str:
+    """WebSocket ของ drc_controller — route ผ่าน nginx gateway (:8007/drc-ws/)
+    แทนพอร์ต 8010 ตรงๆ (พอร์ต 8010 ไม่ได้ถูก forward ออก internet)"""
+    return f"ws://{settings.SERVER_IP}:{settings.DJANGO_PORT}/drc-ws/"
 
 
 def _venv_python() -> str:
@@ -64,6 +71,7 @@ def dji_h5_login(request):
         "pilot_username": settings.PILOT_USERNAME,
         "pilot_password": settings.PILOT_PASSWORD,
         "mqtt_public_port": settings.MQTT_PUBLIC_PORT,
+        "rtmp_port": settings.RTMP_PORT,
     }
     return render(request, "app_core/h5_login.html", context)
 
@@ -289,6 +297,7 @@ def mission_control(request):
             "flv_url": _flv_url(),
             "mjpeg_url": _mjpeg_url(),
             "rtmp_url": _rtmp_url(),
+            "drc_ws_url": _drc_ws_url(),
         },
     )
 
@@ -303,10 +312,11 @@ def remote_control_view(request):
         "app_core/remote_control.html",
         {
             "server_ip": settings.SERVER_IP,
-            "drc_ws_port": settings.DRC_WS_PORT,
+            "drc_ws_url": _drc_ws_url(),
             # ใช้วิดีโอดิบ (ไม่ผ่าน AI) เพื่อ latency ต่ำสุดตอนบังคับบินจริง —
             # AI overlay อยู่แค่หน้า mission_control พอ
             "flv_url": _flv_url(),
+            "mjpeg_url": _mjpeg_url(),
         },
     )
 
@@ -475,7 +485,8 @@ def start_backend_service(request):
         script_path = os.path.join(ROOT_DIR, "ai_pipeline", "telemetry_listener.py")
     elif service_type == "ai":
         service_name = "video_processor"
-        script_path = os.path.join(ROOT_DIR, "ai_pipeline", "video_processor.py")
+        # รันผ่าน supervisor — video_processor ตายจาก ffmpeg segfault ได้ตอนสตรีมโดรนแย่
+        script_path = os.path.join(ROOT_DIR, "ai_pipeline", "video_supervisor.py")
     elif service_type == "drc":
         service_name = "drc_controller"
         script_path = os.path.join(ROOT_DIR, "ai_pipeline", "drc_controller.py")
@@ -485,10 +496,10 @@ def start_backend_service(request):
     try:
         if action == "stop":
             ok, message = stop_service(service_name)
+        elif is_running(service_name):
+            # ไม่ restart ของที่รันอยู่ — โดยเฉพาะ drc_controller (restart = ตัดสิทธิ์ควบคุมกลางอากาศ)
+            ok, message = True, f"{service_name} ทำงานอยู่แล้ว"
         else:
-            if is_running(service_name):
-                stop_service(service_name)
-                time.sleep(0.5)
             ok, message = start_service(service_name, python_path, script_path)
 
         return JsonResponse(

@@ -1,5 +1,6 @@
 import os
 import signal
+import time
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PID_DIR = os.path.join(ROOT_DIR, "run")
@@ -63,7 +64,20 @@ def stop_service(service_name: str) -> tuple[bool, str]:
         with open(pid_file, "r", encoding="utf-8") as handle:
             pid = int(handle.read().strip())
         os.kill(pid, signal.SIGTERM)
-        os.remove(pid_file)
+        # รอให้ตายจริงสูงสุด ~4 วิ แล้ว SIGKILL ถ้ายังไม่ตาย (กัน process ค้าง → เกิด duplicate ตอน start ใหม่)
+        for _ in range(40):
+            time.sleep(0.1)
+            try:
+                os.kill(pid, 0)
+            except OSError:
+                break
+        else:
+            try:
+                os.kill(pid, signal.SIGKILL)
+            except OSError:
+                pass
+        if os.path.exists(pid_file):
+            os.remove(pid_file)
         return True, f"{service_name} หยุดทำงานแล้ว"
     except (OSError, ValueError) as exc:
         if os.path.exists(pid_file):

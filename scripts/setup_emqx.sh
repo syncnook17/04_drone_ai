@@ -87,6 +87,8 @@ add_user() {
 echo "👤 ตั้งค่า MQTT Users..."
 add_user "pilot"  "pilot123"  "false"
 add_user "admin"  "admin1234" "true"
+# drc_service — ใช้โดย drc_controller.py (ควบคุมโดรน DRC mode)
+add_user "drc_service" "${DRC_MQTT_PASSWORD:-drcSecure2026!}" "false"
 
 # --- ตรวจสอบสุดท้าย ---
 echo ""

@@ -1,3 +1,4 @@
 user_id,password,is_superuser
 pilot,pilot123,false
 admin,admin1234,true
+drc_service,drcSecure2026!,false

@@ -42,6 +42,40 @@ def _sn_from_topic(topic: str) -> str:
     return "M4E"
 
 
+# OSD ของ DJI มาเป็นชิ้นๆ (บางเฟรมมีแค่ lat/lng, บางเฟรมมีแค่ battery/heading)
+# เก็บค่าที่ดีล่าสุดต่อ drone ไว้ merge เข้าด้วยกัน เพื่อให้ record ล่าสุดใน DB สมบูรณ์เสมอ
+# (ไม่งั้นแผนที่หน้า mission จะกระพริบ "รอ GPS" ทุกครั้งที่เจอเฟรมที่ไม่มี lat/lng)
+_last_good: dict[str, dict] = {}
+
+_MERGE_FIELDS = (
+    "alt", "heading", "battery_percent", "gps_satellites",
+    "horizontal_speed", "vertical_speed", "home_distance", "flight_mode_code",
+)
+
+
+def _coords_ok(lat, lng) -> bool:
+    try:
+        return abs(float(lat)) > 1e-4 or abs(float(lng)) > 1e-4
+    except (TypeError, ValueError):
+        return False
+
+
+def _merge_with_last_good(t: dict) -> dict:
+    sn = t.get("drone_sn") or "M4E"
+    prev = _last_good.get(sn, {})
+
+    # พิกัด: ถ้าเฟรมนี้ยังไม่ lock GPS (0,0) แต่เคยมีพิกัดดีมาก่อน → ใช้ค่าเดิม
+    if not _coords_ok(t.get("lat"), t.get("lng")) and _coords_ok(prev.get("lat"), prev.get("lng")):
+        t["lat"], t["lng"] = prev["lat"], prev["lng"]
+
+    for field in _MERGE_FIELDS:
+        if t.get(field) is None and prev.get(field) is not None:
+            t[field] = prev[field]
+
+    _last_good[sn] = {**prev, **{k: v for k, v in t.items() if v is not None}}
+    return t
+
+
 def _extract_telemetry(payload: dict) -> dict | None:
     data = payload.get("data") or {}
     if not isinstance(data, dict):
@@ -176,6 +210,7 @@ def on_message(client, userdata, msg):
         return
 
     telemetry["drone_sn"] = telemetry["drone_sn"] or _sn_from_topic(topic)
+    telemetry = _merge_with_last_good(telemetry)
     _save_telemetry(telemetry, "osd" if "/osd" in topic else "state")
 
 
@@ -183,7 +218,7 @@ def main():
     print(f"🔌 MQTT {MQTT_HOST}:{MQTT_PORT} user={MQTT_USER}")
     print("ℹ️  รอ update_topo จาก RC → ตอบ status_reply → รับ OSD พิกัด")
 
-    client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id="telemetry_listener")
+    client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id=f"telemetry_listener_{os.getpid()}")
     client.username_pw_set(MQTT_USER, MQTT_PASS)
     client.on_connect = on_connect
     client.on_subscribe = on_subscribe

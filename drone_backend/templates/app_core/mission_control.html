@@ -119,8 +119,15 @@
             height: 100%;
             display: block;
             object-fit: contain;
-            border: none;
-            border-radius: 0;
+            background: #000;
+        }
+        #overlay-canvas {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: auto;
+            cursor: crosshair;
         }
         #ai-overlay-status {
             position: absolute;
@@ -133,6 +140,38 @@
             border-radius: 4px;
             pointer-events: none;
         }
+        #video-mode-badge {
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            background: rgba(0, 0, 0, 0.65);
+            color: #7dd3fc;
+            font-size: 11px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            pointer-events: none;
+        }
+        .follow-box {
+            background: #1e1e1e;
+            padding: 14px;
+            border-radius: 8px;
+            border: 1px solid #333;
+        }
+        .follow-box h4 { margin: 0 0 8px; color: #aaa; font-size: 13px; }
+        .follow-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+        .btn-follow {
+            background: #f59e0b;
+            color: #121212;
+            border: none;
+            padding: 10px 14px;
+            font-weight: bold;
+            border-radius: 6px;
+            cursor: pointer;
+            min-width: 150px;
+        }
+        .btn-follow.active { background: #ef4444; color: #fff; }
+        .btn-follow:disabled { background: #333; color: #777; cursor: not-allowed; }
+        #follow-msg { font-size: 12px; color: #9ca3af; margin-top: 8px; line-height: 1.5; }
         .hint { color: #666; font-size: 12px; margin: 0; line-height: 1.5; }
         code { color: #deff9a; font-size: 11px; word-break: break-all; }
         .drone-icon-rotate {
@@ -201,12 +240,28 @@
 
         <div id="video-wrap">
             <img id="videoElement" alt="AI video stream">
-            <div id="ai-overlay-status">AI overlay: รอ...</div>
+            <canvas id="overlay-canvas"></canvas>
+            <div id="video-mode-badge">วิดีโอ AI (กรอบฝังในภาพ)</div>
+            <div id="ai-overlay-status">AI: รอ...</div>
         </div>
+
+        <div class="follow-box">
+            <h4>🎯 ติดตามเป้าหมาย (กล้องเล็งอัตโนมัติ)</h4>
+            <div class="follow-row">
+                <button id="btn-follow" class="btn-follow" disabled onclick="toggleFollow()">เริ่มติดตาม</button>
+                <button class="btn-backend secondary" style="min-width:120px;flex:none" onclick="requestCameraControl()">ขอสิทธิ์คุมกล้อง</button>
+                <span id="follow-drc-state" class="hint">DRC: —</span>
+            </div>
+            <div id="follow-msg">
+                กดกรอบคนบนวิดีโอเพื่อเลือกเป้าหมาย จากนั้นกด "เริ่มติดตาม" — กล้อง<b>ก้ม/เงย</b>ตามเป้าหมายเอง
+                (กล้อง M4E คุมได้แค่แนวตั้ง, โดรนไม่ขยับ). ต้องกด "ขอสิทธิ์คุมกล้อง" แล้วยืนยันที่ DJI RC ก่อน
+            </div>
+        </div>
+
         <p class="hint">
             RTMP (Pilot 2): <code>{{ rtmp_url }}</code><br>
-            FLV (Web, ดิบ ไม่มีกรอบ): <code>{{ flv_url }}</code><br>
-            AI Video (มีกรอบ detection ฝังในภาพ): <code>{{ mjpeg_url }}</code><br>
+            FLV (Web, ดิบ): <code>{{ flv_url }}</code><br>
+            AI Video (MJPEG มีกรอบฝังในภาพ): <code>{{ mjpeg_url }}</code><br>
             Pilot H5: <code>http://{{ server_ip }}:{{ django_port }}/dji/login/</code>
         </p>
     </div>
@@ -214,6 +269,7 @@
     <script>
         const DEFAULT_CENTER = [13.7563, 100.5018];
         const MJPEG_URL = "{{ mjpeg_url }}";
+        const DRC_WS_URL = "{{ drc_ws_url }}";
 
         const map = L.map('map').setView(DEFAULT_CENTER, 15);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -344,7 +400,6 @@
                 .then(r => r.json())
                 .then(data => {
                     const hasCoords = isValidCoords(data.lat, data.lng);
-                    const altText = data.alt != null ? Number(data.alt).toFixed(1) + ' m' : '—';
 
                     if (!data.connected) {
                         setMapInfo({ ...baseInfo(data), lat: null, lng: null, alt: data.alt,
@@ -354,12 +409,13 @@
                         return;
                     }
 
+                    const altText = data.alt != null ? Number(data.alt).toFixed(1) + ' m' : '—';
+
                     if (!hasCoords) {
                         setMapInfo({ ...baseInfo(data), lat: null, lng: null, alt: data.alt,
                             status: 'MQTT เชื่อมต่อแล้ว — รอ GPS lock (lat/lng ยังเป็น 0)' }, false);
                         droneMarker.setPopupContent(
-                            `<b>${data.drone_sn || 'Drone'}</b><br>` +
-                            `Lat/Lng: รอ GPS<br>สูง: ${altText}`
+                            `<b>${data.drone_sn || 'Drone'}</b><br>Lat/Lng: รอ GPS<br>สูง: ${altText}`
                         );
                         droneMarker.setTooltipContent(altText);
                         return;
@@ -372,9 +428,7 @@
                         status: data.message || 'อัปเดตล่าสุด' }, true);
                     droneMarker.setPopupContent(
                         `<b>${data.drone_sn || 'Drone'}</b><br>` +
-                        `Lat: ${formatCoord(data.lat, 6)}<br>` +
-                        `Lng: ${formatCoord(data.lng, 6)}<br>` +
-                        `สูง: ${altText}`
+                        `Lat: ${formatCoord(data.lat, 6)}<br>Lng: ${formatCoord(data.lng, 6)}<br>สูง: ${altText}`
                     );
                     droneMarker.setTooltipContent(altText);
                 })
@@ -383,73 +437,215 @@
                 });
         }
 
-        // ภาพ AI video เป็น MJPEG ที่ video_processor.py วาดกรอบ detection ฝังลงในเฟรมก่อนส่งมาแล้ว
-        // ดังนั้นกรอบกับภาพจะตรงกันเสมอ ไม่ต้องวาด overlay แยกอีกชั้นบน browser
+        // ---------------- วิดีโอสด: MJPEG (กรอบ detection ฝังในภาพจาก video_processor) ----------------
+        // video_processor แยก publisher thread ออกจาก inference แล้ว → FPS ลื่นขึ้นมาก (สูงสุด 25fps)
+        // flv.js ใช้ไม่ได้กับสตรีมของโดรนตัวนี้ (spam AVCDecoderConfigurationRecord + Malformed Nalu)
+        const videoImg = document.getElementById('videoElement');
         let mjpegReloadTimer = null;
 
-        function loadMjpegStream() {
-            const img = document.getElementById('videoElement');
+        function loadMjpeg() {
             if (!MJPEG_URL) return;
-            img.src = MJPEG_URL + (MJPEG_URL.includes('?') ? '&' : '?') + 't=' + Date.now();
+            videoImg.src = MJPEG_URL + (MJPEG_URL.includes('?') ? '&' : '?') + 't=' + Date.now();
         }
-
         function scheduleMjpegReload() {
             if (mjpegReloadTimer) return;
-            mjpegReloadTimer = setTimeout(() => {
-                mjpegReloadTimer = null;
-                loadMjpegStream();
-            }, 2000);
+            mjpegReloadTimer = setTimeout(() => { mjpegReloadTimer = null; loadMjpeg(); }, 2500);
+        }
+        videoImg.addEventListener('error', scheduleMjpegReload);
+        loadMjpeg();
+
+        // ---------------- canvas บาง: ใช้แค่จับคลิกเลือกเป้า + วาดเครื่องหมายเป้าหมาย ----------------
+        // (กรอบ detection ฝังในภาพ MJPEG อยู่แล้ว ไม่ต้องวาดซ้ำ)
+        const canvas = document.getElementById('overlay-canvas');
+        const ctx = canvas.getContext('2d');
+
+        let detState = { boxes: [], frameW: 0, frameH: 0, receivedAt: 0, fresh: false, seq: -1 };
+        let followTargetCenter = null; // {x,y} พิกัดเฟรม AI ของเป้าหมายที่กำลังตาม
+
+        function contentRect() {
+            const r = videoImg.getBoundingClientRect();
+            canvas.width = Math.round(r.width);
+            canvas.height = Math.round(r.height);
+            const vw = detState.frameW || 16, vh = detState.frameH || 9;
+            const scale = Math.min(canvas.width / vw, canvas.height / vh);
+            const w = vw * scale, h = vh * scale;
+            return { x: (canvas.width - w) / 2, y: (canvas.height - h) / 2, kx: scale, ky: scale };
         }
 
-        function refreshDetectionStatus() {
+        function drawOverlay() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            if (detState.fresh && detState.frameW && followTargetCenter) {
+                const rect = contentRect();
+                const dt = Math.min((performance.now() - detState.receivedAt) / 1000, 0.6);
+                // ล็อกเป้าเดิม: หาคนที่ใกล้ followTargetCenter ที่สุด
+                let best = null, bestD = Infinity;
+                detState.boxes.forEach(b => {
+                    if (b.label !== 'person') return;
+                    const cx = b.x + (b.vx || 0) * dt + b.w / 2;
+                    const cy = b.y + (b.vy || 0) * dt + b.h / 2;
+                    const d = Math.hypot(cx - followTargetCenter.x, cy - followTargetCenter.y);
+                    if (d < bestD) { bestD = d; best = { x: cx, y: cy }; }
+                });
+                if (best && bestD < 250) followTargetCenter = best;
+                const cx = rect.x + followTargetCenter.x * rect.kx;
+                const cy = rect.y + followTargetCenter.y * rect.ky;
+                ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.arc(cx, cy, 14, 0, Math.PI * 2); ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(cx - 20, cy); ctx.lineTo(cx + 20, cy);
+                ctx.moveTo(cx, cy - 20); ctx.lineTo(cx, cy + 20); ctx.stroke();
+            }
+            requestAnimationFrame(drawOverlay);
+        }
+        requestAnimationFrame(drawOverlay);
+
+        function refreshDetections() {
             fetch('/api/latest-detections/')
                 .then(r => r.json())
                 .then(data => {
                     const statusEl = document.getElementById('ai-overlay-status');
                     if (!data.fresh) {
-                        statusEl.textContent = 'AI overlay: รอ AI processor...';
+                        detState.fresh = false;
+                        statusEl.textContent = 'AI: รอ AI processor...';
                         statusEl.style.color = '#fbbf24';
                         return;
                     }
-                    if (data.age_seconds != null && data.age_seconds > 1.0) {
-                        statusEl.textContent = `AI overlay: ช้า ${data.age_seconds}s`;
-                        statusEl.style.color = '#fbbf24';
-                        return;
+                    if (data.seq !== detState.seq) {
+                        detState = {
+                            boxes: data.boxes || [],
+                            frameW: data.frame_width || detState.frameW,
+                            frameH: data.frame_height || detState.frameH,
+                            receivedAt: performance.now(),
+                            fresh: true, seq: data.seq,
+                        };
                     }
-                    statusEl.textContent = `AI overlay: ${data.boxes.length} วัตถุ` +
-                        (data.infer_ms ? ` (${data.infer_ms}ms)` : '');
-                    statusEl.style.color = '#4ade80';
+                    const nPerson = (data.boxes || []).filter(b => b.label === 'person').length;
+                    statusEl.textContent = `AI: ${data.boxes.length} วัตถุ (คน ${nPerson})` +
+                        (data.infer_ms ? ` · ${data.infer_ms}ms` : '');
+                    statusEl.style.color = (data.age_seconds != null && data.age_seconds > 1.5) ? '#fbbf24' : '#4ade80';
+                    document.getElementById('btn-follow').disabled =
+                        !followActive && !(nPerson > 0 && drcState === 'drc_connected');
                 })
                 .catch(() => {});
         }
 
+        // คลิกบนวิดีโอ → เลือกกรอบคนที่ใกล้จุดคลิกสุด (map พิกัดคลิก → พิกัดเฟรม AI)
+        canvas.addEventListener('click', (e) => {
+            if (!detState.fresh || !detState.frameW) return;
+            const rect = contentRect();
+            const r = canvas.getBoundingClientRect();
+            const fx = (e.clientX - r.left - rect.x) / rect.kx;
+            const fy = (e.clientY - r.top - rect.y) / rect.ky;
+            let best = null, bestD = Infinity;
+            detState.boxes.forEach(b => {
+                if (b.label !== 'person') return;
+                const d = Math.hypot((b.x + b.w / 2) - fx, (b.y + b.h / 2) - fy);
+                if (d < bestD) { bestD = d; best = b; }
+            });
+            if (best) {
+                followTargetCenter = { x: best.x + best.w / 2, y: best.y + best.h / 2 };
+                document.getElementById('follow-msg').textContent =
+                    'เลือกเป้าหมายแล้ว — กด "เริ่มติดตาม" เพื่อให้กล้องหมุนตาม';
+            }
+        });
+
+        // ---------------- DRC WebSocket (สำหรับสั่ง camera_aim ให้กล้องตามเป้า) ----------------
+        let drcWs = null, drcState = 'idle', followActive = false, drcReconnectTimer = null;
+        let followSendTimer = null;
+
+        function setFollowDrcState(txt) {
+            document.getElementById('follow-drc-state').textContent = 'DRC: ' + txt;
+        }
+
+        function connectDrcWs() {
+            try { drcWs = new WebSocket(DRC_WS_URL); } catch (e) { setFollowDrcState('เชื่อมต่อไม่ได้'); return; }
+            drcWs.onopen = () => setFollowDrcState('เชื่อมต่อแล้ว (idle)');
+            drcWs.onclose = () => {
+                setFollowDrcState('หลุด — reconnect...');
+                drcState = 'idle';
+                if (!drcReconnectTimer) drcReconnectTimer = setTimeout(() => { drcReconnectTimer = null; connectDrcWs(); }, 3000);
+            };
+            drcWs.onerror = () => { try { drcWs.close(); } catch (e) {} };
+            drcWs.onmessage = (evt) => {
+                let d; try { d = JSON.parse(evt.data); } catch { return; }
+                if (d.type === 'status') {
+                    drcState = d.control_state;
+                    setFollowDrcState(`${d.control_state}${d.message ? ' — ' + d.message : ''}`);
+                    if (drcState !== 'drc_connected' && followActive) stopFollow();
+                } else if (d.type === 'ack' && d.result) {
+                    document.getElementById('follow-msg').textContent = `⚠️ ${d.method} error (result=${d.result})`;
+                }
+            };
+        }
+
+        function drcSend(obj) {
+            if (drcWs && drcWs.readyState === WebSocket.OPEN) drcWs.send(JSON.stringify(obj));
+        }
+
+        function requestCameraControl() {
+            if (!drcWs || drcWs.readyState !== WebSocket.OPEN) { connectDrcWs(); return; }
+            drcSend({ type: 'request_control' });
+            document.getElementById('follow-msg').textContent =
+                'ส่งคำขอสิทธิ์ควบคุมแล้ว — ไปกดยืนยันบน DJI RC Plus 2 ให้เรียบร้อย';
+        }
+
+        function toggleFollow() {
+            if (followActive) stopFollow();
+            else startFollow();
+        }
+
+        function startFollow() {
+            if (drcState !== 'drc_connected') {
+                document.getElementById('follow-msg').textContent =
+                    'ยังไม่ได้สิทธิ์คุมกล้อง — กด "ขอสิทธิ์คุมกล้อง" แล้วยืนยันที่ RC ก่อน';
+                return;
+            }
+            if (!followTargetCenter) {
+                document.getElementById('follow-msg').textContent = 'ยังไม่ได้เลือกเป้าหมาย — กดกรอบคนบนวิดีโอก่อน';
+                return;
+            }
+            followActive = true;
+            drcSend({ type: 'follow', active: true });
+            const btn = document.getElementById('btn-follow');
+            btn.textContent = 'หยุดติดตาม'; btn.classList.add('active'); btn.disabled = false;
+            document.getElementById('follow-msg').textContent =
+                'กำลังติดตาม — กล้องก้ม/เงยตามเป้าหมาย (แนวตั้งเท่านั้น, โดรนไม่ขยับ)';
+            if (followSendTimer) clearInterval(followSendTimer);
+            followSendTimer = setInterval(() => {
+                if (!followActive || !followTargetCenter || !detState.frameW) return;
+                // กล้อง M4E คุมได้แค่ก้ม-เงย → ตรึง x=0.5 (กลางจอแนวนอน) ตามแค่แกน y
+                const ny = Math.max(0, Math.min(1, followTargetCenter.y / detState.frameH));
+                drcSend({ type: 'camera_aim', x: 0.5, y: ny, locked: false });
+            }, 350);
+        }
+
+        function stopFollow() {
+            followActive = false;
+            drcSend({ type: 'follow', active: false });
+            if (followSendTimer) { clearInterval(followSendTimer); followSendTimer = null; }
+            const btn = document.getElementById('btn-follow');
+            btn.textContent = 'เริ่มติดตาม'; btn.classList.remove('active');
+            document.getElementById('follow-msg').textContent = 'หยุดติดตามแล้ว';
+        }
+
         function launchService(type) {
-            fetch(`/api/start-service/?service=${type}`)
-                .then(r => r.json())
-                .then(data => {
-                    alert(data.message);
-                    refreshSystemStatus();
-                });
+            fetch(`/api/start-service/?service=${type}`).then(r => r.json()).then(data => {
+                alert(data.message); refreshSystemStatus();
+            });
         }
-
         function stopService(type) {
-            fetch(`/api/start-service/?service=${type}&action=stop`)
-                .then(r => r.json())
-                .then(data => {
-                    alert(data.message);
-                    refreshSystemStatus();
-                });
+            fetch(`/api/start-service/?service=${type}&action=stop`).then(r => r.json()).then(data => {
+                alert(data.message); refreshSystemStatus();
+            });
         }
 
-        document.getElementById('videoElement').addEventListener('error', scheduleMjpegReload);
-
-        loadMjpegStream();
+        connectDrcWs();
         refreshSystemStatus();
         refreshLocation();
-        refreshDetectionStatus();
+        refreshDetections();
         setInterval(refreshLocation, 1000);
         setInterval(refreshSystemStatus, 3000);
-        setInterval(refreshDetectionStatus, 500);
+        setInterval(refreshDetections, 300);
     </script>
 </body>
 </html>

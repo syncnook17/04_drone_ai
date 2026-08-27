@@ -13,6 +13,8 @@ services:
       - "18083:18083"
     volumes:
       - ./emqx/auth-built-in-db.csv:/opt/emqx/data/bootstrap_users.csv:ro
+      # persist ฐานข้อมูล user/config ข้ามการ recreate container
+      - emqx_data:/opt/emqx/data
     environment:
       - EMQX_DASHBOARD__DEFAULT_PASSWORD=admin1234
       # ตั้ง built-in database authentication (persist ข้าม restart)
@@ -21,6 +23,10 @@ services:
       - EMQX_AUTHENTICATION__1__PASSWORD_HASH_ALGORITHM__NAME=plain
       - EMQX_AUTHENTICATION__1__PASSWORD_HASH_ALGORITHM__SALT_POSITION=disable
       - EMQX_AUTHENTICATION__1__USER_ID_TYPE=username
+      # *** สำคัญ: ชี้ให้ authenticator import bootstrap_users.csv ตอนบูตครั้งแรก ***
+      # (ของเดิม mount ไฟล์ไว้แต่ไม่เคยตั้ง 2 บรรทัดนี้ → DB user ว่างเปล่า → auth ล้มทั้งหมด)
+      - EMQX_AUTHENTICATION__1__BOOTSTRAP_FILE=/opt/emqx/data/bootstrap_users.csv
+      - EMQX_AUTHENTICATION__1__BOOTSTRAP_TYPE=plain
       # allow anonymous fallback ปิดไว้ (pilot ต้อง login ด้วย user/pass)
       - EMQX_MQTT__ALLOW_ANONYMOUS=false
     
@@ -48,3 +54,6 @@ services:
       - "host.docker.internal:host-gateway"
     depends_on:
       - mqtt_broker
+
+volumes:
+  emqx_data:

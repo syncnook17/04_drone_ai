@@ -138,6 +138,13 @@
         .obstacle-item .dist { font-family: monospace; }
         .obstacle-item .dist.close { color: #f87171; }
         .obstacle-item .dist.ok { color: #4ade80; }
+        .gimbal-btn {
+            background: #333; color: #fff; border: 1px solid #555;
+            border-radius: 6px; padding: 12px 6px; font-size: 13px; font-weight: bold;
+            cursor: pointer; min-width: 0; flex: none; touch-action: none;
+        }
+        .gimbal-btn:active, .gimbal-btn.holding { background: #f59e0b; color: #121212; }
+        .gimbal-btn:disabled { background: #222; color: #666; cursor: not-allowed; }
     </style>
 </head>
 <body>
@@ -194,8 +201,15 @@
 
             <p class="hint">
                 กด "ขอสิทธิ์ควบคุม" แล้วต้องเห็น popup ยืนยันขึ้นบน DJI RC Plus 2 — ต้องกดยอมรับที่ RC ก่อนถึงจะเข้า DRC mode ได้<br>
-                WebSocket: <code>ws://{{ server_ip }}:{{ drc_ws_port }}/</code>
+                WebSocket: <code>{{ drc_ws_url }}</code>
             </p>
+
+            <h3 style="margin-top:16px;">บริการ drc_controller</h3>
+            <div class="btn-group">
+                <button style="background:#4ade80;color:#121212" onclick="drcService('start')">เปิดบริการ DRC</button>
+                <button style="background:#444;color:#fff" onclick="drcService('stop')">ปิดบริการ DRC</button>
+            </div>
+            <p class="hint" id="drc-svc-msg">ถ้า WebSocket ต่อไม่ติด ให้กด "เปิดบริการ DRC" ก่อน</p>
         </div>
 
         <div class="panel">
@@ -228,12 +242,36 @@
                 Sensitivity คือ % ของความเร็วสูงสุดตามสเปค DJI (17 m/s แนวนอน, 4 m/s แนวตั้ง, 90 deg/s หมุนตัว)
             </p>
         </div>
+
+        <div class="panel">
+            <h3>🎥 ควบคุมกล้อง (Gimbal ก้ม-เงย) — ทดสอบก่อนบินจริง</h3>
+            <p class="hint" style="margin-top:0">
+                ใช้ <code>camera_screen_drag</code> (locked=false) → <b>กล้องก้ม-เงยอย่างเดียว ตัวโดรนไม่ขยับ</b>
+                กล้อง M4E ไม่มีแกนหันซ้าย-ขวา (yaw) ให้คุม. ใช้ได้เมื่อสถานะ = drc_connected
+            </p>
+            <div class="sensitivity-row">
+                <span>ความเร็ว gimbal</span>
+                <input type="range" id="gimbal-speed" min="10" max="100" value="40">
+                <span id="gimbal-speed-value">40%</span>
+            </div>
+            <div style="display:flex;gap:10px;max-width:320px;margin-bottom:12px;">
+                <button id="g-up" class="gimbal-btn" style="flex:1;padding:16px">⬆️ เงยขึ้น</button>
+                <button id="g-down" class="gimbal-btn" style="flex:1;padding:16px">⬇️ ก้มลง</button>
+                <button id="g-reset" class="gimbal-btn" style="flex:1;padding:16px;background:#38bdf8">รีเซ็ต</button>
+            </div>
+            <div class="stick-values" id="gimbal-values">pitch = 0.00 rad/s</div>
+            <p class="hint">
+                กดปุ่มค้าง = ก้ม/เงยต่อเนื่อง, ปล่อย = หยุด. payload_index จะ auto-detect จาก OSD ของโดรน
+            </p>
+        </div>
     </div>
 
     <script>
         const FLV_URL = "{{ flv_url }}";
-        const WS_URL = "ws://{{ server_ip }}:{{ drc_ws_port }}/";
+        // route ผ่าน nginx gateway :8007/drc-ws/ — พอร์ต 8010 ตรงๆ ไม่ได้ถูก forward ออก internet
+        const WS_URL = "{{ drc_ws_url }}";
         const XY_LIMIT = 17.0, H_LIMIT = 4.0, W_LIMIT = 90.0;
+        const GIMBAL_PITCH_LIMIT = 0.5; // rad/s (ตรงกับ DRC_GIMBAL_PITCH_LIMIT ใน drc_controller)
 
         // วิดีโอดิบ (ไม่ผ่าน AI) ตั้ง buffer ให้ต่ำสุดเพื่อ latency น้อยที่สุดตอนบังคับบินจริง
         let flvPlayer = null;
@@ -321,10 +359,11 @@
         }
 
         function updateButtons() {
-            const safetyOk = document.getElementById('safety-check').checked;
             const idle = controlState === 'idle';
-            document.getElementById('btn-request').disabled = !(idle && safetyOk && ws && ws.readyState === WebSocket.OPEN);
-            document.getElementById('btn-release').disabled = !(!idle && ws && ws.readyState === WebSocket.OPEN);
+            const wsOpen = ws && ws.readyState === WebSocket.OPEN;
+            // เปิดปุ่มไว้ถ้า WS ต่ออยู่ + idle — เช็ค safety ใน requestControl() แล้วบอกเหตุผลถ้าไม่ผ่าน
+            document.getElementById('btn-request').disabled = !(idle && wsOpen);
+            document.getElementById('btn-release').disabled = !(!idle && wsOpen);
             setSticksEnabled(controlState === 'drc_connected');
         }
 
@@ -400,12 +439,22 @@
         }
 
         function wsSend(obj) {
-            if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj));
+            if (ws && ws.readyState === WebSocket.OPEN) { ws.send(JSON.stringify(obj)); return true; }
+            return false;
         }
 
         function requestControl() {
-            if (!document.getElementById('safety-check').checked) return;
+            const box = document.getElementById('message-box');
+            if (!document.getElementById('safety-check').checked) {
+                box.textContent = '⚠️ ติ๊กช่อง safety ด้านบนก่อน จึงจะขอสิทธิ์ควบคุมได้';
+                return;
+            }
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                box.textContent = '⚠️ WebSocket ยังไม่เชื่อมต่อ — กด "เปิดบริการ DRC" แล้วรอสักครู่';
+                return;
+            }
             wsSend({ type: 'request_control' });
+            box.textContent = '📤 ส่งคำขอสิทธิ์ควบคุมแล้ว — รอสถานะเปลี่ยนเป็น requesting → granted → drc_connected (ถ้ามี popup บน RC ให้กด Allow)';
         }
 
         function releaseControl() {
@@ -581,6 +630,68 @@
 
         // ส่ง joystick ปัจจุบันซ้ำเรื่อยๆ ระหว่างที่ยังลากอยู่ (เผื่อ pointermove ไม่ยิงถี่พอ) และตอน idle ก็ยังส่ง 0 เป็นระยะ
         setInterval(() => sendJoystick(false), SEND_MIN_INTERVAL_MS);
+
+        // ---------------- gimbal (ก้ม-เงย) control ----------------
+        function drcService(action) {
+            const el = document.getElementById('drc-svc-msg');
+            if (action !== 'stop' && ws && ws.readyState === WebSocket.OPEN) {
+                el.textContent = 'บริการ DRC ทำงานอยู่แล้ว (WebSocket เชื่อมต่อแล้ว) — ไม่ต้องกดซ้ำ';
+                return;
+            }
+            el.textContent = 'กำลัง' + (action === 'stop' ? 'ปิด' : 'เปิด') + 'บริการ DRC...';
+            fetch(`/api/start-service/?service=drc&action=${action === 'stop' ? 'stop' : 'start'}`)
+                .then(r => r.json())
+                .then(d => {
+                    el.textContent = d.message || '';
+                    if (action !== 'stop') {
+                        // ปิด WS เก่าก่อน (กัน connection ค้าง) แล้วต่อใหม่หลัง service พร้อม
+                        try { if (ws) ws.close(); } catch (e) {}
+                        setTimeout(connectWs, 2000);
+                    }
+                })
+                .catch(() => { el.textContent = 'เรียกบริการไม่สำเร็จ'; });
+        }
+
+        document.getElementById('gimbal-speed').addEventListener('input', (e) => {
+            document.getElementById('gimbal-speed-value').textContent = e.target.value + '%';
+        });
+        function gimbalSpeed() { return Number(document.getElementById('gimbal-speed').value) / 100; }
+
+        let gimbalPitch = 0;
+        const gimbalHeld = new Set();  // 'up' (เงย) / 'down' (ก้ม)
+
+        function recomputeGimbal() {
+            const s = gimbalSpeed();
+            gimbalPitch = ((gimbalHeld.has('up') ? 1 : 0) - (gimbalHeld.has('down') ? 1 : 0)) * GIMBAL_PITCH_LIMIT * s;
+            document.getElementById('gimbal-values').textContent = `pitch = ${gimbalPitch.toFixed(2)} rad/s`;
+            sendGimbal();
+        }
+        function sendGimbal() {
+            if (controlState === 'drc_connected') wsSend({ type: 'gimbal', pitch: gimbalPitch });
+        }
+
+        function bindGimbalButton(id, dir) {
+            const el = document.getElementById(id);
+            const press = (e) => {
+                e.preventDefault();
+                if (controlState !== 'drc_connected') return;
+                gimbalHeld.add(dir); el.classList.add('holding'); recomputeGimbal();
+            };
+            const release = () => { gimbalHeld.delete(dir); el.classList.remove('holding'); recomputeGimbal(); };
+            el.addEventListener('pointerdown', press);
+            el.addEventListener('pointerup', release);
+            el.addEventListener('pointerleave', release);
+            el.addEventListener('pointercancel', release);
+        }
+        bindGimbalButton('g-up', 'up');
+        bindGimbalButton('g-down', 'down');
+        document.getElementById('g-reset').addEventListener('click', () => {
+            if (controlState === 'drc_connected') wsSend({ type: 'gimbal_reset' });
+        });
+
+        // re-send ระหว่างกดค้าง (เผื่อ tick ฝั่ง service ต้องการ input ต่อเนื่อง) + ปล่อย 0 เมื่อไม่ได้กด
+        setInterval(() => { if (gimbalHeld.size > 0) sendGimbal(); }, 100);
+        window.addEventListener('blur', () => { if (gimbalHeld.size) { gimbalHeld.clear(); recomputeGimbal(); } });
 
         connectWs();
     </script>

@@ -48,7 +48,20 @@ STALE_THRESHOLD = float(os.getenv("DRC_STALE_THRESHOLD_SECONDS", 0.5))
 
 USER_ID = "web-remote-control"
 USER_CALLSIGN = "Web Operator"
+# M3E/M4E series: สิทธิ์บิน ("flight") ครอบคลุมการควบคุม payload (กล้อง/gimbal) อยู่แล้ว
+# (doc DJI: "no distinction between the flight control authority and payload control authority")
+# ไม่ใส่ "payload" แยก เพราะ M4E อาจ reject key ที่ไม่รู้จักแล้วทำให้ auth ล้มทั้งคำขอ
 CONTROL_KEYS = ["flight"]
+
+# payload_index เริ่มต้น (M4E). ถ้า drc/up ส่ง drc_camera_osd_info_push มา จะ auto-update
+# เป็นค่าจริงจากโดรน — override ผ่าน .env: DRC_PAYLOAD_INDEX
+DEFAULT_PAYLOAD_INDEX = os.getenv("DRC_PAYLOAD_INDEX", "88-0-0")
+GIMBAL_PITCH_LIMIT = float(os.getenv("DRC_GIMBAL_PITCH_LIMIT", 0.5))  # rad/s
+# กล้อง M4E: gimbal เป็นแบบ pitch อย่างเดียว (ก้ม-เงย) — ไม่มีแกน yaw ให้ผู้ใช้คุม
+# การหันซ้าย-ขวาต้องหันตัวโดรน (locked=true) เท่านั้น
+GIMBAL_TICK_HZ = 10.0
+GIMBAL_TICK_INTERVAL = 1.0 / GIMBAL_TICK_HZ
+CAMERA_AIM_MIN_INTERVAL = 0.2  # ส่ง camera_aim ได้ถี่สุด 5Hz (ตอน follow)
 
 # ---------- Phase B: joystick / drone_control ----------
 # ตาม doc DJI: ส่ง 5-10Hz — ใช้ 7Hz เป็นค่ากลาง และ "ห้ามเกิน 10Hz" คือ hard cap ห้ามแก้เกินนี้
@@ -88,6 +101,14 @@ class DrcController:
         self.joystick = {"x": 0.0, "y": 0.0, "h": 0.0, "w": 0.0}
         self.joystick_updated_at = 0.0
         self.control_seq = 0
+
+        # Phase C: gimbal / camera state
+        self.payload_index = DEFAULT_PAYLOAD_INDEX
+        self.gimbal = {"pitch": 0.0}  # rad/s (pitch อย่างเดียว — M4E ไม่มี gimbal yaw)
+        self.gimbal_updated_at = 0.0
+        self._last_gimbal_zero_sent = True
+        self.follow_active = False
+        self.last_aim_at = 0.0
 
     # ---------- audit log ----------
     def log_event(self, event_type: str, detail: str = "") -> None:
@@ -187,6 +208,10 @@ class DrcController:
         with self._lock:
             self.joystick = {"x": 0.0, "y": 0.0, "h": 0.0, "w": 0.0}
             self.joystick_updated_at = time.time()
+            self.gimbal = {"pitch": 0.0}
+            self.gimbal_updated_at = time.time()
+            self._last_gimbal_zero_sent = False
+        self.follow_active = False
         if was_connected:
             # ยิง zero-velocity ทันที ไม่รอ tick ถัดไป (สำคัญตอน shutdown ที่ tick loop อาจไม่มีโอกาสรันอีก)
             self.publish_drone_control()
@@ -260,6 +285,60 @@ class DrcController:
         self.log_event("emergency_stop", "สั่งจากหน้าเว็บ")
         self.broadcast({"type": "ack", "method": "emergency_stop", "result": 0})
 
+    # ---------- Phase C: gimbal (ก้ม-เงย) + camera aim (follow) ----------
+    def _publish_payload_service(self, method: str, data: dict) -> None:
+        """คำสั่งกล้อง/gimbal ส่งที่ topic .../services (ไม่ใช่ drc/down) ตาม DJI Cloud API"""
+        if not self.mqtt_client or not self.gateway_sn:
+            return
+        data = {"payload_index": self.payload_index, **data}
+        self._publish_service(method, data)
+
+    def update_gimbal(self, pitch) -> None:
+        """browser ส่ง rate ก้ม-เงย มาใหม่ — pitch หน่วย rad/s (บวก=เงยขึ้น, ลบ=ก้มลง)
+        กล้อง M4E ไม่มีแกน yaw ให้คุม → ส่งแค่ pitch, locked=false → ตัวโดรนไม่ขยับ"""
+        with self._lock:
+            self.gimbal = {"pitch": self._clamp(pitch, GIMBAL_PITCH_LIMIT)}
+            self.gimbal_updated_at = time.time()
+
+    def publish_gimbal_drag(self) -> None:
+        """เรียกจาก gimbal_tick_loop — ส่ง camera_screen_drag ต่อเนื่องระหว่างที่ยังสั่งค้าง
+        และส่ง 0 หนึ่งครั้งเมื่อปล่อย/หมดอายุ (คำสั่ง rate ของ DJI ค้างจนกว่าจะส่ง 0)"""
+        if not self.mqtt_client or not self.gateway_sn:
+            return
+        with self._lock:
+            stale = (time.time() - self.gimbal_updated_at) > STALE_THRESHOLD
+            pitch = 0.0 if stale else self.gimbal["pitch"]
+            if pitch == 0.0 and self._last_gimbal_zero_sent:
+                return
+            self._last_gimbal_zero_sent = (pitch == 0.0)
+        self._publish_payload_service("camera_screen_drag", {
+            "locked": False,
+            "pitch_speed": round(pitch, 3),
+            "yaw_speed": 0.0,
+        })
+
+    def gimbal_reset(self) -> None:
+        self._publish_payload_service("gimbal_reset", {"reset_mode": 0})
+        self.log_event("gimbal_reset", "recenter จากหน้าเว็บ")
+
+    def camera_aim(self, x, y, locked: bool = False) -> None:
+        """เล็งกล้องไปที่พิกัดในเฟรม (0..1). ใช้ทั้งตอน tap-to-aim และตอน follow"""
+        try:
+            x = max(0.0, min(1.0, float(x)))
+            y = max(0.0, min(1.0, float(y)))
+        except (TypeError, ValueError):
+            return
+        now = time.time()
+        if now - self.last_aim_at < CAMERA_AIM_MIN_INTERVAL:
+            return
+        self.last_aim_at = now
+        self._publish_payload_service("camera_aim", {
+            "camera_type": "zoom",
+            "locked": bool(locked),
+            "x": round(x, 4),
+            "y": round(y, 4),
+        })
+
     # ---------- gateway_sn discovery (จาก telemetry_listener ที่รันอยู่แล้ว) ----------
     def refresh_gateway_sn(self) -> None:
         # เรียกจาก thread ธรรมดา (ไม่ใช่ asyncio loop) เท่านั้น — ดู gateway_sn_poll_thread
@@ -274,10 +353,23 @@ class DrcController:
             if self.control_state == "idle":
                 self.set_status(message=f"พร้อมขอสิทธิ์ควบคุม gateway_sn={self.gateway_sn}")
 
+    def _capture_payload_index(self, data: dict) -> None:
+        """ดึง payload_index จริงของกล้องจาก OSD — ใช้เป็น target ของคำสั่ง gimbal/camera"""
+        cameras = data.get("cameras")
+        if isinstance(cameras, list) and cameras:
+            pi = cameras[0].get("payload_index") or cameras[0].get("index")
+            if pi and pi != self.payload_index:
+                self.payload_index = pi
+                print(f"📷 payload_index (จาก osd) = {pi}")
+
     # ---------- MQTT message handling ----------
     def handle_message(self, topic: str, payload: dict) -> None:
         method = payload.get("method", "")
         data = payload.get("data", {}) or {}
+
+        if topic.endswith("/osd"):
+            self._capture_payload_index(data)
+            return
 
         if topic.endswith("/services_reply"):
             result = data.get("result")
@@ -344,7 +436,19 @@ class DrcController:
             if method == "hsi_info_push":
                 self.broadcast({"type": "obstacle", **data})
                 return
-            # method อื่นๆ (osd_info_push, drc_battery/geo/camera_osd_info_push, heart_beat ฯลฯ)
+            if method in ("camera_screen_drag", "camera_aim", "gimbal_reset"):
+                result = data.get("result")
+                if result:
+                    print(f"⚠️ {method} result={result}")
+                self.broadcast({"type": "ack", "method": method, "result": result or 0})
+                return
+            if method in ("drc_camera_osd_info_push", "camera_osd_info_push"):
+                pi = data.get("payload_index")
+                if pi and pi != self.payload_index:
+                    self.payload_index = pi
+                    print(f"📷 payload_index (จาก drc/up) = {pi}")
+                return
+            # method อื่นๆ (osd_info_push, drc_battery/geo/heart_beat ฯลฯ)
             # ยิงถี่มาก (หลายครั้ง/วิ) — ไม่ log raw ทุกตัวเพื่อไม่ให้ log ท่วม
             return
 
@@ -361,7 +465,8 @@ def on_connect(client, userdata, flags, reason_code, properties=None):
         client.subscribe("thing/product/+/events", qos=1)
         client.subscribe("thing/product/+/state", qos=1)
         client.subscribe("thing/product/+/drc/up", qos=0)
-        print("📡 Subscribe: services_reply, events, state, drc/up")
+        client.subscribe("thing/product/+/osd", qos=0)
+        print("📡 Subscribe: services_reply, events, state, drc/up, osd")
     else:
         print(f"❌ เชื่อมต่อล้มเหลว: {reason_code}")
 
@@ -404,10 +509,23 @@ async def ws_handler(ws):
                     )
             elif msg_type == "emergency_stop":
                 controller.emergency_stop()
+            elif msg_type == "gimbal":
+                # ควบคุมกล้อง ก้ม-เงย — ใช้ได้เมื่อ drc_connected (locked=false → โดรนไม่ขยับ)
+                if controller.control_state == "drc_connected":
+                    controller.update_gimbal(msg.get("pitch", 0))
+            elif msg_type == "gimbal_reset":
+                if controller.control_state == "drc_connected":
+                    controller.gimbal_reset()
+            elif msg_type == "camera_aim":
+                # tap-to-aim หรือ follow: เล็งกล้องไปที่จุด (x,y) 0..1 ในเฟรม
+                if controller.control_state == "drc_connected":
+                    controller.camera_aim(msg.get("x"), msg.get("y"), locked=bool(msg.get("locked", False)))
+            elif msg_type == "follow":
+                controller.follow_active = bool(msg.get("active"))
+                controller.broadcast({"type": "follow", "active": controller.follow_active})
             else:
-                # กล้อง/gimbal ฯลฯ จะเพิ่มใน Phase C
                 await ws.send(json.dumps({"type": "ack", "method": msg_type, "result": -1,
-                                           "message": "ยังไม่รองรับใน Phase B"}))
+                                           "message": "ไม่รู้จักคำสั่งนี้"}))
     except websockets.exceptions.ConnectionClosed:
         pass
     finally:
@@ -447,6 +565,14 @@ async def control_tick_loop():
             controller.publish_drone_control()
 
 
+async def gimbal_tick_loop():
+    """ยิง camera_screen_drag ต่อเนื่องระหว่างที่กล้องกำลังถูกสั่งค้าง + ส่ง 0 เมื่อปล่อย"""
+    while True:
+        await asyncio.sleep(GIMBAL_TICK_INTERVAL)
+        if controller.control_state == "drc_connected":
+            controller.publish_gimbal_drag()
+
+
 def gateway_sn_poll_thread():
     """รันใน thread ธรรมดา (ไม่ใช่ asyncio) เพราะ Django ORM sync calls ห้ามเรียกตรงจาก event loop thread"""
     while True:
@@ -454,8 +580,18 @@ def gateway_sn_poll_thread():
         time.sleep(1.0)
 
 
+_shutdown_started = False
+
+
 def shutdown_cleanup():
     """พยายามปล่อยสิทธิ์ควบคุมก่อนปิดตัว — ครอบคลุม SIGTERM/exit ปกติ (ไม่ครอบคลุม SIGKILL/crash แรง)"""
+    global _shutdown_started
+    if _shutdown_started:
+        return
+    _shutdown_started = True
+    # กันค้าง: ถ้า cleanup ไม่จบใน 3 วิ (เช่น MQTT publish qos=1 บล็อกเพราะ broker หลุด) → บังคับออก
+    threading.Timer(3.0, lambda: os._exit(0)).start()
+
     if controller.control_state in ("granted", "drc_connecting", "drc_connected"):
         print("🛑 กำลังปิดตัว — ปล่อยสิทธิ์ควบคุมก่อน...")
         try:
@@ -483,6 +619,7 @@ async def main_async():
             heartbeat_loop(),
             disconnect_watchdog_loop(),
             control_tick_loop(),
+            gimbal_tick_loop(),
         )
 
 
@@ -491,7 +628,8 @@ def main():
     if not DRC_MQTT_PASSWORD:
         print("⚠️ DRC_MQTT_PASSWORD ว่างเปล่า — ตั้งค่าใน .env และสร้าง user นี้ใน EMQX ก่อนใช้งานจริง")
 
-    client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id="drc_controller")
+    # client_id ไม่ซ้ำต่อ process — กัน "takeover war" ถ้ามี instance เก่าค้าง (EMQX เตะตัวที่ client_id ซ้ำ)
+    client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id=f"drc_controller_{os.getpid()}")
     client.username_pw_set(DRC_MQTT_USER, DRC_MQTT_PASSWORD)
     client.on_connect = on_connect
     client.on_message = on_message
