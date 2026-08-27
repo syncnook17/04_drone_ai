@@ -6,6 +6,7 @@
     <title>Mission Control - DJI M4E Cockpit</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flv.js@1.6.2/dist/flv.min.js"></script>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -114,7 +115,7 @@
             border: 1px solid #333;
             overflow: hidden;
         }
-        #video-wrap img {
+        #video-wrap video {
             width: 100%;
             height: 100%;
             display: block;
@@ -239,9 +240,9 @@
         </div>
 
         <div id="video-wrap">
-            <img id="videoElement" alt="AI video stream">
+            <video id="videoElement" autoplay muted playsinline></video>
             <canvas id="overlay-canvas"></canvas>
-            <div id="video-mode-badge">วิดีโอ AI (กรอบฝังในภาพ)</div>
+            <div id="video-mode-badge">วิดีโอสด (FLV) + กรอบ AI overlay</div>
             <div id="ai-overlay-status">AI: รอ...</div>
         </div>
 
@@ -268,6 +269,7 @@
 
     <script>
         const DEFAULT_CENTER = [13.7563, 100.5018];
+        const FLV_URL = "{{ flv_url }}";
         const MJPEG_URL = "{{ mjpeg_url }}";
         const DRC_WS_URL = "{{ drc_ws_url }}";
 
@@ -437,25 +439,44 @@
                 });
         }
 
-        // ---------------- วิดีโอสด: MJPEG (กรอบ detection ฝังในภาพจาก video_processor) ----------------
-        // video_processor แยก publisher thread ออกจาก inference แล้ว → FPS ลื่นขึ้นมาก (สูงสุด 25fps)
-        // flv.js ใช้ไม่ได้กับสตรีมของโดรนตัวนี้ (spam AVCDecoderConfigurationRecord + Malformed Nalu)
-        const videoImg = document.getElementById('videoElement');
-        let mjpegReloadTimer = null;
+        // ---------------- วิดีโอสด: FLV low-latency (สตรีมดิบจาก SRS — เล่นได้แม้สตรีมโดรนไม่สมบูรณ์) ----------------
+        // กรอบ detection วาดเป็น canvas overlay จาก /api/latest-detections/ (แยกจาก video_processor)
+        // ถ้า video_processor decode ไม่ได้ วิดีโอยังเล่นได้ แค่ไม่มีกรอบ
+        const videoEl = document.getElementById('videoElement');
+        let flvPlayer = null, flvReconnectTimer = null;
 
-        function loadMjpeg() {
-            if (!MJPEG_URL) return;
-            videoImg.src = MJPEG_URL + (MJPEG_URL.includes('?') ? '&' : '?') + 't=' + Date.now();
+        function destroyFlv() {
+            if (!flvPlayer) return;
+            try { flvPlayer.pause(); flvPlayer.unload(); flvPlayer.detachMediaElement(); flvPlayer.destroy(); } catch (e) {}
+            flvPlayer = null;
         }
-        function scheduleMjpegReload() {
-            if (mjpegReloadTimer) return;
-            mjpegReloadTimer = setTimeout(() => { mjpegReloadTimer = null; loadMjpeg(); }, 2500);
+        function scheduleFlvReconnect() {
+            if (flvReconnectTimer) return;
+            flvReconnectTimer = setTimeout(() => { flvReconnectTimer = null; startFlv(true); }, 3000);
         }
-        videoImg.addEventListener('error', scheduleMjpegReload);
-        loadMjpeg();
+        function startFlv(force) {
+            if (!window.flvjs || !flvjs.isSupported() || !FLV_URL) return;
+            if (flvPlayer && !force) return;
+            destroyFlv();
+            flvPlayer = flvjs.createPlayer(
+                { type: 'flv', url: FLV_URL, isLive: true, enableStashBuffer: false, stashInitialSize: 64 },
+                { enableWorker: false, lazyLoad: false, liveBufferLatencyChasing: true,
+                  liveBufferLatencyMaxLatency: 1.5, liveBufferLatencyMinRemain: 0.1 });
+            flvPlayer.attachMediaElement(videoEl);
+            flvPlayer.load();
+            flvPlayer.play().catch(() => {});
+            flvPlayer.on(flvjs.Events.ERROR, scheduleFlvReconnect);
+        }
+        startFlv();
 
-        // ---------------- canvas บาง: ใช้แค่จับคลิกเลือกเป้า + วาดเครื่องหมายเป้าหมาย ----------------
-        // (กรอบ detection ฝังในภาพ MJPEG อยู่แล้ว ไม่ต้องวาดซ้ำ)
+        let lastVT = -1, lastVAt = performance.now(), lastReconn = 0;
+        setInterval(() => {
+            const now = performance.now();
+            if (videoEl.currentTime !== lastVT) { lastVT = videoEl.currentTime; lastVAt = now; return; }
+            if (now - lastVAt > 5000 && now - lastReconn > 6000) { lastReconn = now; startFlv(true); }
+        }, 1000);
+
+        // ---------------- canvas overlay: กรอบ detection + เครื่องหมายเป้าหมาย ----------------
         const canvas = document.getElementById('overlay-canvas');
         const ctx = canvas.getContext('2d');
 
@@ -463,37 +484,60 @@
         let followTargetCenter = null; // {x,y} พิกัดเฟรม AI ของเป้าหมายที่กำลังตาม
 
         function contentRect() {
-            const r = videoImg.getBoundingClientRect();
+            const r = videoEl.getBoundingClientRect();
             canvas.width = Math.round(r.width);
             canvas.height = Math.round(r.height);
-            const vw = detState.frameW || 16, vh = detState.frameH || 9;
+            // ใช้ขนาดวิดีโอจริงถ้ามี ไม่งั้น fallback เป็นขนาดเฟรม AI
+            const vw = videoEl.videoWidth || detState.frameW || 16;
+            const vh = videoEl.videoHeight || detState.frameH || 9;
             const scale = Math.min(canvas.width / vw, canvas.height / vh);
             const w = vw * scale, h = vh * scale;
-            return { x: (canvas.width - w) / 2, y: (canvas.height - h) / 2, kx: scale, ky: scale };
+            return { x: (canvas.width - w) / 2, y: (canvas.height - h) / 2, kx: scale, ky: scale, vw, vh };
         }
 
         function drawOverlay() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            if (detState.fresh && detState.frameW && followTargetCenter) {
+            if (detState.fresh && detState.frameW) {
                 const rect = contentRect();
+                // เฟรม AI อาจคนละขนาดกับวิดีโอ → สเกลพิกัดกล่องด้วยอัตราส่วน
+                const sx = rect.vw / detState.frameW, sy = rect.vh / detState.frameH;
                 const dt = Math.min((performance.now() - detState.receivedAt) / 1000, 0.6);
-                // ล็อกเป้าเดิม: หาคนที่ใกล้ followTargetCenter ที่สุด
-                let best = null, bestD = Infinity;
+
+                let followBest = null, followD = Infinity;
                 detState.boxes.forEach(b => {
-                    if (b.label !== 'person') return;
-                    const cx = b.x + (b.vx || 0) * dt + b.w / 2;
-                    const cy = b.y + (b.vy || 0) * dt + b.h / 2;
-                    const d = Math.hypot(cx - followTargetCenter.x, cy - followTargetCenter.y);
-                    if (d < bestD) { bestD = d; best = { x: cx, y: cy }; }
+                    const ex = b.x + (b.vx || 0) * dt, ey = b.y + (b.vy || 0) * dt;
+                    const px = rect.x + ex * sx * rect.kx;
+                    const py = rect.y + ey * sy * rect.ky;
+                    const pw = b.w * sx * rect.kx, ph = b.h * sy * rect.ky;
+                    const cxF = ex + b.w / 2, cyF = ey + b.h / 2;
+                    let isFollow = false;
+                    if (followTargetCenter && b.label === 'person') {
+                        const d = Math.hypot(cxF - followTargetCenter.x, cyF - followTargetCenter.y);
+                        if (d < followD) { followD = d; followBest = { x: cxF, y: cyF }; isFollow = d < 250; }
+                    }
+                    ctx.lineWidth = isFollow ? 3 : 2;
+                    ctx.strokeStyle = b.label === 'person' ? (isFollow ? '#ef4444' : '#4ade80') : '#38bdf8';
+                    ctx.strokeRect(px, py, pw, ph);
+                    ctx.font = '12px monospace';
+                    const label = `${b.label} ${b.confidence}%`;
+                    const tw = ctx.measureText(label).width + 8;
+                    ctx.fillStyle = ctx.strokeStyle;
+                    ctx.fillRect(px, py - 15, tw, 15);
+                    ctx.fillStyle = '#000';
+                    ctx.fillText(label, px + 4, py - 4);
+                    b._screen = { px, py, pw, ph };
                 });
-                if (best && bestD < 250) followTargetCenter = best;
-                const cx = rect.x + followTargetCenter.x * rect.kx;
-                const cy = rect.y + followTargetCenter.y * rect.ky;
-                ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 2;
-                ctx.beginPath(); ctx.arc(cx, cy, 14, 0, Math.PI * 2); ctx.stroke();
-                ctx.beginPath();
-                ctx.moveTo(cx - 20, cy); ctx.lineTo(cx + 20, cy);
-                ctx.moveTo(cx, cy - 20); ctx.lineTo(cx, cy + 20); ctx.stroke();
+
+                if (followBest && followD < 250) {
+                    followTargetCenter = followBest;
+                    const cx = rect.x + followBest.x * sx * rect.kx;
+                    const cy = rect.y + followBest.y * sy * rect.ky;
+                    ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 2;
+                    ctx.beginPath(); ctx.arc(cx, cy, 14, 0, Math.PI * 2); ctx.stroke();
+                    ctx.beginPath();
+                    ctx.moveTo(cx - 20, cy); ctx.lineTo(cx + 20, cy);
+                    ctx.moveTo(cx, cy - 20); ctx.lineTo(cx, cy + 20); ctx.stroke();
+                }
             }
             requestAnimationFrame(drawOverlay);
         }
@@ -534,8 +578,9 @@
             if (!detState.fresh || !detState.frameW) return;
             const rect = contentRect();
             const r = canvas.getBoundingClientRect();
-            const fx = (e.clientX - r.left - rect.x) / rect.kx;
-            const fy = (e.clientY - r.top - rect.y) / rect.ky;
+            const sx = rect.vw / detState.frameW, sy = rect.vh / detState.frameH;
+            const fx = (e.clientX - r.left - rect.x) / rect.kx / sx;
+            const fy = (e.clientY - r.top - rect.y) / rect.ky / sy;
             let best = null, bestD = Infinity;
             detState.boxes.forEach(b => {
                 if (b.label !== 'person') return;

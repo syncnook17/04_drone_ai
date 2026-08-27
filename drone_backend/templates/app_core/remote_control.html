@@ -195,7 +195,7 @@
             </label>
 
             <div class="btn-group">
-                <button id="btn-request" disabled onclick="requestControl()">ขอสิทธิ์ควบคุม (Request Control)</button>
+                <button id="btn-request" onclick="requestControl()">ขอสิทธิ์ควบคุม (Request Control)</button>
                 <button id="btn-release" disabled onclick="releaseControl()">ปล่อยสิทธิ์ควบคุม (Release Control)</button>
             </div>
 
@@ -361,8 +361,8 @@
         function updateButtons() {
             const idle = controlState === 'idle';
             const wsOpen = ws && ws.readyState === WebSocket.OPEN;
-            // เปิดปุ่มไว้ถ้า WS ต่ออยู่ + idle — เช็ค safety ใน requestControl() แล้วบอกเหตุผลถ้าไม่ผ่าน
-            document.getElementById('btn-request').disabled = !(idle && wsOpen);
+            // btn-request เปิดตลอด — requestControl() เช็ค safety/ws/state เอง แล้วบอกเหตุผลในกล่องข้อความ
+            document.getElementById('btn-request').disabled = false;
             document.getElementById('btn-release').disabled = !(!idle && wsOpen);
             setSticksEnabled(controlState === 'drc_connected');
         }
@@ -413,6 +413,8 @@
         }
 
         function connectWs() {
+            if (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN)) return;
+            setStatusEl('st-ws', 'กำลังเชื่อมต่อ...', 'warn');
             ws = new WebSocket(WS_URL);
             ws.onopen = () => {
                 setStatusEl('st-ws', 'เชื่อมต่อแล้ว', 'ok');
@@ -450,11 +452,21 @@
                 return;
             }
             if (!ws || ws.readyState !== WebSocket.OPEN) {
-                box.textContent = '⚠️ WebSocket ยังไม่เชื่อมต่อ — กด "เปิดบริการ DRC" แล้วรอสักครู่';
+                box.textContent = '⚠️ WebSocket ยังไม่เชื่อมต่อ (' + wsStateText() + ') — กด "เปิดบริการ DRC" แล้วรอ 2-3 วิ';
+                connectWs();
                 return;
             }
-            wsSend({ type: 'request_control' });
-            box.textContent = '📤 ส่งคำขอสิทธิ์ควบคุมแล้ว — รอสถานะเปลี่ยนเป็น requesting → granted → drc_connected (ถ้ามี popup บน RC ให้กด Allow)';
+            if (controlState !== 'idle') {
+                box.textContent = 'สถานะปัจจุบัน: ' + controlState + ' — ถ้าค้าง กด "ปล่อยสิทธิ์" ก่อนแล้วขอใหม่';
+            }
+            const sent = wsSend({ type: 'request_control' });
+            box.textContent = (sent ? '📤 ส่งคำขอแล้ว' : '❌ ส่งไม่ได้') +
+                ' — รอสถานะ requesting → granted → drc_connected (ถ้ามี popup บน RC กด Allow)';
+        }
+
+        function wsStateText() {
+            if (!ws) return 'ไม่มี';
+            return ['CONNECTING', 'OPEN', 'CLOSING', 'CLOSED'][ws.readyState] || String(ws.readyState);
         }
 
         function releaseControl() {

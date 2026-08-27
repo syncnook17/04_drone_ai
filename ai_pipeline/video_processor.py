@@ -30,10 +30,15 @@ RTMP_URL = f"rtmp://127.0.0.1:{RTMP_PORT}/{RTMP_APP}/{RTMP_STREAM_KEY}"
 SRS_HTTP_PORT = os.getenv("SRS_HTTP_PORT", "8085")
 FLV_URL = f"http://127.0.0.1:{SRS_HTTP_PORT}/{RTMP_APP}/{RTMP_STREAM_KEY}.flv"
 INGEST_URL = FLV_URL if os.getenv("AI_INGEST", "rtmp") == "flv" else RTMP_URL
-# low-latency flags — ไม่ใส่ key 'timeout' (สำหรับ rtmp มันหมายถึง listen mode)
+# low-latency + ทนต่อ packet เสีย (สตรีมโดรน corrupt บ่อย)
+# - err_detect;ignore_err : อย่า abort เมื่อเจอ NAL เสีย
+# - ไม่ใส่ key 'timeout' (สำหรับ rtmp = listen mode)
 os.environ.setdefault(
-    "OPENCV_FFMPEG_CAPTURE_OPTIONS", "fflags;nobuffer|flags;low_delay"
+    "OPENCV_FFMPEG_CAPTURE_OPTIONS",
+    "fflags;nobuffer|flags;low_delay|err_detect;ignore_err",
 )
+# OpenCV เลิกอ่านเฟรมหลังพยายาม N ครั้ง (ดีฟอลต์ 4096 น้อยไปตอน stream มี packet mismatch รัวๆ)
+os.environ.setdefault("OPENCV_FFMPEG_READ_ATTEMPTS", "1000000")
 TARGET_CLASSES = [0, 2]  # person, car
 MIN_CONFIDENCE = float(os.getenv("AI_MIN_CONFIDENCE", "28"))
 IMGSZ = int(os.getenv("AI_IMGSZ", "640"))
